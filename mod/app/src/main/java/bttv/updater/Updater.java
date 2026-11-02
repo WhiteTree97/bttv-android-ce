@@ -8,97 +8,27 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.IOException;
 
 import bttv.Data;
-import bttv.Network;
 import bttv.Res;
 import bttv.ResUtil;
-import bttv.settings.Settings;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
 import tv.twitch.android.feature.viewer.main.navigation.PersistentBannerPresenter;
 import tv.twitch.android.feature.viewer.main.navigation.PersistentBannerPresenter.PersistentBannerPresenterListener;
 
 public class Updater {
-    private static final String GH_API_HOST = "https://api.github.com";
-
     public static void manuallyCheckForUpdates(final Activity activity) {
-        ManualUpdateListener listener = new ManualUpdateListener(activity);
-        listener.onStart();
-        checkForUpdates(activity, listener, true);
+        new UpdateDialog(activity, () -> { }).show();
     }
 
     public static void checkForUpdates(final Activity activity, final PersistentBannerPresenter presenter) {
-        checkForUpdates(activity, new UIListener(activity, presenter), false);
+        AutoUpdateChecker.initialize(activity.getApplicationContext());
     }
 
     public static void checkForUpdates(@NonNull final Context context, @NonNull final UpdateCallbackListener listener, boolean manual) {
-        if (!ResUtil.getBooleanFromSettings(Settings.AutoUpdateChecksEnabled) && !manual) {
-            listener.onNoUpdate();
-            return;
-        }
-        Log.d("LBTTVUpdated", "Checking for updates...");
-        Network.get(GH_API_HOST + "/repos/bttv-android/bttv/releases/latest", new Callback() {
-            @Override
-            public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e("LBTTVNetworkFail", "Update Call failed", e);
-                Log.e("LBTTVNetworkFail", call.toString());
-                listener.onError(e);
-            }
-
-            @Override
-            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                try (ResponseBody responseBody = response.body()) {
-                    if (!response.isSuccessful())
-                        throw new IOException("Unexpected code " + response);
-
-                    String str = responseBody.string();
-                    JSONObject json = new JSONObject(str);
-                    String tagName = json.getString("tag_name");
-                    if (tagName.equals(Data.getBttvVersion(context))) {
-                        Log.d("LBTTVUpdate",
-                                "app up-to-date (version: , " + Data.getBttvVersion(context) + " gh: " + tagName + ")");
-                        listener.onNoUpdate();
-                        return;
-                    }
-                    String body = json.getString("body");
-                    String apkUrl = extractApkUrl(json);
-                    if (apkUrl == null) {
-                        Log.w("LBTTVUpdate", "Update found, but no apk file attached, won't ask user");
-                        listener.onNoUpdate();
-                        return;
-                    }
-
-                    Log.d("LBTTVUpdater", "Update available " + Data.getBttvVersion(context) + " -> " + tagName);
-
-                    listener.onUpdate(tagName, body, apkUrl, json.getString("html_url"));
-
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                    listener.onError(e);
-                }
-            }
-
-        });
-    }
-
-    private static String extractApkUrl(JSONObject json) throws JSONException {
-        JSONArray assets = json.getJSONArray("assets");
-        for (int i = 0; i < assets.length(); i++) {
-            JSONObject asset = assets.getJSONObject(i);
-            String mime = asset.getString("content_type");
-            if (mime.equals("application/vnd.android.package-archive")) {
-                return asset.getString("browser_download_url");
-            }
-        }
-        return null;
+        // Historical callback API must not bypass the verified controller/download flow.
+        listener.onError(new IOException("Legacy update callbacks are disabled. Use BTTV Settings > Check for Updates."));
     }
 
     public static Intent updateActivityIndent(@NonNull Context context, @NonNull String newVersion, @NonNull String body, @NonNull String apkUrl) {

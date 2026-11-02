@@ -104,13 +104,51 @@ Maintainers should also apply their normal branch/environment protection policy.
 
 ## Future updater-compatible release metadata
 
-Automatic and manual checking use the same fixed endpoint:
+Community-fork automatic and manual checking use the same release source. Change
+the single `UpdateSource.REPOSITORY` literal in
+`mod/app/src/main/java/bttv/updater/UpdateSource.java` when the final repository
+name is decided (currently provisional `WhiteTree97/bttv-android-ce`).
+`tools/release_metadata.py` reads that exact literal too; there is no separate
+publisher URL setting. Rebuild clients after changing it. There is no fallback
+to the original project's releases. Original upstream attribution is retained.
 
-`https://api.github.com/repos/bttv-android/bttv/releases/latest`
+Discovery uses `https://api.github.com/repos/OWNER/REPO/releases?per_page=10&page=N`,
+not `/releases/latest`, which excludes prereleases. Both stable and beta/prerelease
+releases are eligible, but drafts are never offered. The updater checks up to
+three pages (30 recent releases), with existing per-response byte/depth limits,
+timeouts, cancellation and rate-limit handling. It never follows an API `Link`
+header to an arbitrary URL. Keep the intended compatible release within this
+window; discovery does not promise to search the repository's entire history.
 
-The updater excludes drafts and GitHub `prerelease: true` releases. A `-beta`
-version suffix alone does not determine GitHub's prerelease flag. Metadata checks
-never install an APK; downloading and installation require user confirmation.
+Every candidate passes the same compatibility/asset metadata checks before an
+offer. The highest compatible, strictly newer **versionCode** in the window wins,
+regardless of tag ordering, publication order or prerelease status. Incompatible
+or malformed entries cannot become offers; conflicting highest-code assets fail
+closed. GitHub `prerelease: true` does not bypass package, SDK, dual-ARM, signer,
+SHA-256, size or version checks. Metadata checks never install an APK; downloading
+and installation require user confirmation. Downloads must originate at the
+configured repository's exact HTTPS release asset URL. Only the existing GitHub
+asset CDN hosts are accepted as redirects; arbitrary hosts/repositories are not.
+
+Before an end-to-end update test, choose the final public repository and install
+a baseline build containing this configuration. Existing upstream-only clients
+do not switch sources merely because a community release is published. Choose
+the repository before distributing that baseline: a later rename/redirect to a
+different repository is intentionally rejected by the allowlist.
+
+The baseline and candidate must have the same package and approved signing
+identity, and the candidate must have a strictly higher approved versionCode.
+No signing-key transition is authorized or implemented here. The metadata tool
+continues to reject the known public test/debug signing identity; a successful
+test-signed local build is not evidence of production signing readiness. Do not
+disable that gate to publish a release. Signing decisions and any migration from
+existing test installations require separate approval.
+
+After separately authorized build/upload/publication, verify both manual and
+automatic discovery against the real release, download/hash/signature checks,
+user-confirmed overlay installation and data preservation. Also test draft,
+wrong-signer/package, stale-code and cancelled-download rejection. No release
+workflow or publication is performed by the metadata tool.
 
 Before a future release, obtain explicit approval for a versionName/tag and a
 strictly increasing versionCode. The present name/tag already refers to an old

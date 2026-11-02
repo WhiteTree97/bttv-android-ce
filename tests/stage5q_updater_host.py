@@ -18,7 +18,7 @@ public class UpdaterHostTest {
  }
  static JSONObject release(JSONObject c,byte[] bytes)throws Exception {
   JSONObject asset=new JSONObject().put("id",123).put("name","bttv.apk").put("state","uploaded").put("content_type",UpdateRelease.MIME)
-   .put("size",bytes.length).put("browser_download_url","https://github.com/bttv-android/bttv/releases/download/"+c.getString("releaseTag")+"/bttv.apk");
+   .put("size",bytes.length).put("browser_download_url",UpdateSource.downloadPrefix()+c.getString("releaseTag")+"/bttv.apk");
   return new JSONObject().put("tag_name",c.getString("releaseTag")).put("draft",false).put("prerelease",false)
    .put("name","Test release").put("body","Notes\n```bttv-update\n"+c+"\n```\n").put("assets",new JSONArray().put(asset));
  }
@@ -39,7 +39,7 @@ public class UpdaterHostTest {
  }
  @Test public void actualOfficialLegacyIsNotAnUpdate()throws Exception {
   String legacy=Files.readString(Paths.get(System.getProperty("updater.repo"),".tmp/stage5qg/upstream/latest.json"));
-  assertNull(UpdateRelease.inspect(legacy,installed()).candidate);
+  rejects(()->UpdateRelease.inspect(legacy,installed()));
   byte[] b={1};JSONObject c=compatibility(b).put("signerSha256",OFFICIAL);
   rejects(()->UpdateRelease.inspect(release(c,b).toString(),installed()));
  }
@@ -57,7 +57,8 @@ public class UpdaterHostTest {
  }
  @Test public void assetAndChannelParsing()throws Exception {
   byte[] b={1};
-  for(String key:new String[]{"draft","prerelease"}) {JSONObject r=release(compatibility(b),b).put(key,true);assertNull(UpdateRelease.inspect(r.toString(),installed()).candidate);}
+  JSONObject draft=release(compatibility(b),b).put("draft",true);assertNull(UpdateRelease.inspect(draft.toString(),installed()).candidate);
+  JSONObject beta=release(compatibility(b),b).put("prerelease",true);assertNotNull(UpdateRelease.inspect(beta.toString(),installed()).candidate);
   JSONObject missing=release(compatibility(b),b);missing.remove("body");assertNull(UpdateRelease.inspect(missing.toString(),installed()).candidate);
   JSONObject huge=release(compatibility(b),b).put("body","x".repeat(UpdateRelease.MAX_NOTES+1));rejects(()->UpdateRelease.inspect(huge.toString(),installed()));
   JSONObject noTag=release(compatibility(b),b);noTag.remove("tag_name");rejects(()->UpdateRelease.inspect(noTag.toString(),installed()));

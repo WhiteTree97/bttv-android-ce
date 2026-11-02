@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Conservative official-release contract. Unknown compatibility is never an install offer. */
+/** Conservative configured-release contract. Unknown compatibility is never an install offer. */
 public final class UpdateRelease {
     enum Outcome { AVAILABLE, NOT_NEWER, UNSUPPORTED, MISSING_ASSET, INVALID_METADATA,
         NETWORK, RATE_LIMIT, SERVER, HTTP_ERROR, CANCELLED, DISABLED, INTERNAL_ERROR }
@@ -18,7 +18,7 @@ public final class UpdateRelease {
         Problem(String message,Outcome outcome) { super(message); this.outcome=outcome; }
     }
     public static final String PACKAGE = "tv.twitch.bttvandroid.app";
-    public static final String API = "https://api.github.com/repos/bttv-android/bttv/releases/latest";
+    public static final String API = UpdateSource.releasesPage(1);
     public static final String MIME = "application/vnd.android.package-archive";
     public static final int MAX_METADATA = 262144, MAX_NOTES = 24576;
     public static final long MAX_APK = 536870912L;
@@ -68,8 +68,8 @@ public final class UpdateRelease {
             require(tag.matches("v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?"), "Invalid release tag");
             require(json.get("draft") instanceof Boolean && json.get("prerelease") instanceof Boolean,
                     "Missing release status");
-            if (json.getBoolean("draft") || json.getBoolean("prerelease"))
-                return new Inspection(null, "No compatible update: this channel excludes drafts and prereleases.",Outcome.UNSUPPORTED);
+            if (json.getBoolean("draft"))
+                return new Inspection(null, "No compatible update: draft releases are excluded.",Outcome.UNSUPPORTED);
             String notes = json.isNull("body") ? "" : json.optString("body", "");
             require(notes.length() <= MAX_NOTES, "Release notes are too large");
             JSONArray assets = json.getJSONArray("assets");
@@ -94,7 +94,7 @@ public final class UpdateRelease {
             // Explicit, visible release-note metadata; no hidden test mode or arbitrary sidecar URL.
             int start=notes.indexOf(MARKER);
             if (start<0) return new Inspection(null,
-                    "No compatible update: the official release does not provide sufficient compatibility metadata.",Outcome.UNSUPPORTED);
+                    "No compatible update: the release does not provide sufficient compatibility metadata.",Outcome.UNSUPPORTED);
             require((start==0 || notes.charAt(start-1)=='\n') && notes.indexOf(MARKER,start+1)<0,
                     "Ambiguous compatibility metadata");
             int end=notes.indexOf("\n```",start+MARKER.length());
@@ -132,7 +132,42 @@ public final class UpdateRelease {
                     code,size,id,min,abis);
             return new Inspection(candidate,"Compatible update available.",Outcome.AVAILABLE);
         } catch (IOException e) { throw e; }
-        catch (Exception e) { throw new Problem("Invalid official release metadata"); }
+        catch (Exception e) { throw new Problem("Invalid release metadata"); }
+    }
+
+    /** Do not trust API order, version-name ordering, or prerelease status as proof of compatibility. */
+    static Inspection select(JSONArray releases, Installed installed) throws IOException {
+        require(releases.length() <= UpdateSource.PER_PAGE * UpdateSource.MAX_PAGES, "Too many releases");
+        Inspection best = null, fallback = null;
+        IOException invalid = null;
+        boolean conflicting = false;
+        for (int i = 0; i < releases.length(); i++) {
+            Inspection result;
+            try {
+                Object item = releases.get(i);
+                require(item instanceof JSONObject, "Invalid release entry");
+                result = inspect(item.toString(), installed);
+            } catch (Exception e) {
+                if (invalid == null) invalid = e instanceof IOException ? (IOException)e : new Problem("Invalid release entry");
+                continue;
+            }
+            if (result.candidate == null) {
+                if (fallback == null || result.outcome == Outcome.NOT_NEWER) fallback = result;
+            } else if (best == null || result.candidate.code > best.candidate.code) {
+                best = result;
+                conflicting = false;
+            } else if (result.candidate.code == best.candidate.code) {
+                conflicting |= !(result.candidate.url.equals(best.candidate.url)
+                        && result.candidate.sha256.equals(best.candidate.sha256)
+                        && result.candidate.assetId == best.candidate.assetId
+                        && result.candidate.size == best.candidate.size);
+            }
+        }
+        require(!conflicting, "Conflicting releases share a versionCode");
+        if (best != null) return best;
+        if (fallback != null) return fallback;
+        if (invalid != null) throw invalid;
+        return new Inspection(null, "No compatible update in the recent published releases.", Outcome.NOT_NEWER);
     }
 
     static void boundedJson(String text) throws IOException {
@@ -169,7 +204,7 @@ public final class UpdateRelease {
             URI u=new URI(value);
             return "https".equals(u.getScheme()) && "github.com".equals(u.getHost()) && u.getPort()==-1
                     && u.getUserInfo()==null && u.getQuery()==null && u.getFragment()==null
-                    && u.getRawPath().equals("/bttv-android/bttv/releases/download/"+tag+"/"+file);
+                    && value.equals(UpdateSource.downloadPrefix()+tag+"/"+file);
         } catch(Exception e) { return false; }
     }
     static void require(boolean ok,String reason) throws IOException { if(!ok) throw new Problem(reason); }

@@ -108,7 +108,7 @@ final class UpdateController {
                         if(!automatic.enabled())throw new IOException("Automatic checking disabled");
                         return connections.open(url);
                     };
-                    UpdateRelease.Inspection result=UpdateRelease.inspect(UpdateTransfer.metadata(token,source),UpdateVerifier.installed(context));
+                    UpdateRelease.Inspection result=UpdateTransfer.discover(UpdateVerifier.installed(context),token,source);
                     outcome=result.outcome; candidate=result.candidate;
                     token.check(); session.finish(id,result.candidate==null?UpdateSession.State.NONE:UpdateSession.State.AVAILABLE,result.message,result.candidate,null);
                 } else {
@@ -136,8 +136,8 @@ final class UpdateController {
                 } else if(failure instanceof UpdateRelease.Problem)outcome=((UpdateRelease.Problem)failure).outcome;
                 else if(failure instanceof IOException)outcome=UpdateRelease.Outcome.NETWORK;
                 String message;
-                if(failure instanceof java.net.UnknownHostException)message="Cannot resolve the official server. Check your connection.";
-                else if(failure instanceof java.net.SocketTimeoutException)message="The official server timed out. Please retry later.";
+                if(failure instanceof java.net.UnknownHostException)message="Cannot resolve the release server. Check your connection.";
+                else if(failure instanceof java.net.SocketTimeoutException)message="The release server timed out. Please retry later.";
                 else if(failure instanceof javax.net.ssl.SSLException)message="A secure connection could not be established.";
                 else if(failure instanceof UpdateRelease.Problem || failure instanceof UpdateTransfer.HttpFailure)message=failure.getMessage();
                 else if(failure instanceof IOException)message="Network or file access failed. Check your connection and available storage.";

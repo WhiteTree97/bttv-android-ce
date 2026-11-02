@@ -9,6 +9,17 @@ import re
 from verify_release_apk import verify
 
 PACKAGE = 'tv.twitch.bttvandroid.app'
+SOURCE = Path(__file__).resolve().parents[1] / 'mod/app/src/main/java/bttv/updater/UpdateSource.java'
+
+
+def repository():
+    """Read the single runtime trust configuration; reject computed/ambiguous values."""
+    matches = re.findall(r'^    public static final String REPOSITORY = "([^"\r\n]+)";$',
+                         SOURCE.read_text(encoding='utf-8'), re.M)
+    if len(matches) != 1 or not re.fullmatch(
+            r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9][A-Za-z0-9._-]{0,99}', matches[0]):
+        raise ValueError('Invalid or ambiguous UpdateSource.REPOSITORY literal')
+    return matches[0]
 
 
 def block(proof, release, previous_code):
@@ -16,8 +27,8 @@ def block(proof, release, previous_code):
     version = proof['versionName']
     if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?', tag or '') or tag != 'v' + version:
         raise ValueError('Release tag must exactly match the actual APK version')
-    if release.get('prerelease') is not False or not isinstance(release.get('draft'), bool):
-        raise ValueError('This updater channel excludes prereleases; draft may be prepared but not discovered')
+    if type(release.get('prerelease')) is not bool or type(release.get('draft')) is not bool:
+        raise ValueError('Explicit boolean draft/prerelease flags required; drafts may be prepared but not discovered')
     if proof['packageName'] != PACKAGE or proof.get('testSigningIdentity') is not False:
         raise ValueError('An approved non-debug release identity is required')
     if type(previous_code) is not int or previous_code < 1 or proof['versionCode'] <= previous_code:
@@ -36,7 +47,7 @@ def block(proof, release, previous_code):
         raise ValueError('APK asset filename must be at most 180 characters for updater compatibility')
     if asset.get('size') != proof['sizeBytes']:
         raise ValueError('Uploaded asset size differs from verified APK')
-    url = 'https://github.com/bttv-android/bttv/releases/download/' + tag + '/' + name
+    url = 'https://github.com/' + repository() + '/releases/download/' + tag + '/' + name
     if asset.get('browser_download_url') != url:
         raise ValueError('Unexpected asset download URL')
     digest = asset.get('digest')

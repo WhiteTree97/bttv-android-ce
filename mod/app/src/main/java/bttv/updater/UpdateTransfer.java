@@ -5,6 +5,7 @@ import java.net.*;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import org.json.JSONArray;
 
 /** Bounded streaming HTTPS only. No Activity, worker service, authentication or shared storage. */
 final class UpdateTransfer {
@@ -32,7 +33,7 @@ final class UpdateTransfer {
         final boolean rateLimited;
         HttpFailure(int status,long retryAt) { this(status,retryAt,status==429); }
         HttpFailure(int status,long retryAt,boolean rateLimited) {
-            super("Official release server returned HTTP "+status);
+            super("Release server returned HTTP "+status);
             this.retryAt=retryAt; this.status=status; this.rateLimited=rateLimited;
         }
     }
@@ -71,14 +72,20 @@ final class UpdateTransfer {
         try {
             URI u=new URI(value);
             if(!"https".equals(u.getScheme()) || u.getUserInfo()!=null || u.getPort()!=-1 || u.getFragment()!=null) return false;
-            if(metadata) return UpdateRelease.API.equals(value);
-            if("github.com".equals(u.getHost())) return u.getRawPath().startsWith("/bttv-android/bttv/releases/download/") && u.getQuery()==null;
+            if(metadata) return UpdateSource.metadataUrl(value);
+            if("github.com".equals(u.getHost())) return u.getQuery()==null && value.startsWith(UpdateSource.downloadPrefix())
+                    && value.substring(UpdateSource.downloadPrefix().length()).matches(
+                            "v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?/[A-Za-z0-9][A-Za-z0-9._-]*\\.apk");
             return "release-assets.githubusercontent.com".equals(u.getHost()) || "objects.githubusercontent.com".equals(u.getHost());
         } catch(Exception e) { return false; }
     }
 
     static String metadata(Cancel cancel,Connections factory) throws IOException {
-        HttpURLConnection c=open(UpdateRelease.API,true,cancel,factory);
+        return metadata(UpdateRelease.API,cancel,factory);
+    }
+
+    private static String metadata(String url,Cancel cancel,Connections factory) throws IOException {
+        HttpURLConnection c=open(url,true,cancel,factory);
         try(InputStream in=c.getInputStream(); ByteArrayOutputStream out=new ByteArrayOutputStream()) {
             long length=c.getContentLengthLong(); UpdateRelease.require(length<=UpdateRelease.MAX_METADATA,"Metadata is too large");
             byte[] buffer=new byte[8192]; int n,total=0;
@@ -88,6 +95,24 @@ final class UpdateTransfer {
             UpdateRelease.require(length<0 || length==total,"Incomplete metadata response");
             return new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
         } finally { c.disconnect(); cancel.unbind(); }
+    }
+
+    static UpdateRelease.Inspection discover(UpdateRelease.Installed installed,Cancel cancel,Connections factory) throws IOException {
+        JSONArray releases = new JSONArray();
+        for (int page = 1; page <= UpdateSource.MAX_PAGES; page++) {
+            cancel.check();
+            String text = metadata(UpdateSource.releasesPage(page),cancel,factory);
+            UpdateRelease.boundedJson(text);
+            try {
+                JSONArray items = new JSONArray(text);
+                UpdateRelease.require(items.length() <= UpdateSource.PER_PAGE,"Too many releases in a page");
+                for (int i = 0; i < items.length(); i++) releases.put(items.get(i));
+                if (items.length() < UpdateSource.PER_PAGE) break;
+            } catch (IOException e) { throw e; }
+            catch (Exception e) { throw new UpdateRelease.Problem("Invalid release list"); }
+        }
+        cancel.check();
+        return UpdateRelease.select(releases,installed);
     }
 
     static File download(UpdateRelease release,File directory,Cancel cancel,Progress progress,Connections factory) throws Exception {

@@ -20,7 +20,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from prepare_twitch_input import inspect
-from release_metadata import block
+from release_metadata import block, repository
 from stage_production_input import production_paths
 
 
@@ -62,6 +62,8 @@ class Infrastructure(unittest.TestCase):
         self.assertEqual(gallery, current[current.index('## Contributors ✨'):current.index('\n## Acknowledgments')])
         for line in original.splitlines():
             if re.match(r'^\[[^]]+\]: ', line):
+                if line.startswith('[base-version]: '):
+                    line=line.replace('build%20on-v19.0.1-', 'build%20on-v31.2.0-')
                 self.assertIn(line, current)
         self.assertIn('31.2.0 (3102006)', current)
         self.assertNotIn('Watch Parties', current)
@@ -289,7 +291,7 @@ class Metadata(unittest.TestCase):
             supportedAbis=['arm64-v8a','armeabi-v7a'],twitchVersion='31.2.0',sizeBytes=100,sha256='B'*64)
         self.release=dict(tag_name='v1.2.3',draft=True,prerelease=False,assets=[dict(id=12,name='bttv.apk',
             state='uploaded',content_type='application/vnd.android.package-archive',size=100,
-            browser_download_url='https://github.com/bttv-android/bttv/releases/download/v1.2.3/bttv.apk',digest='sha256:'+'b'*64)])
+            browser_download_url='https://github.com/'+repository()+'/releases/download/v1.2.3/bttv.apk',digest='sha256:'+'b'*64)])
 
     def test_actual_asset_bound_to_block(self):
         text=block(self.proof,self.release,122)
@@ -314,13 +316,13 @@ class Metadata(unittest.TestCase):
 
     def test_filename_exactly_180_accepted(self):
         asset=self.release['assets'][0];name='a'*176+'.apk'
-        asset.update(name=name,browser_download_url='https://github.com/bttv-android/bttv/releases/download/v1.2.3/'+name)
+        asset.update(name=name,browser_download_url='https://github.com/'+repository()+'/releases/download/v1.2.3/'+name)
         self.assertEqual(len(name),180)
         self.assertEqual(json.loads(block(self.proof,self.release,122).split('\n',1)[1].rsplit('\n```',1)[0])['assetName'],name)
 
     def test_filename_181_rejected(self):
         asset=self.release['assets'][0];name='a'*177+'.apk'
-        asset.update(name=name,browser_download_url='https://github.com/bttv-android/bttv/releases/download/v1.2.3/'+name)
+        asset.update(name=name,browser_download_url='https://github.com/'+repository()+'/releases/download/v1.2.3/'+name)
         with self.assertRaisesRegex(ValueError,'at most 180 characters'):block(self.proof,self.release,122)
 
     def test_exactly_64_total_assets_accepted(self):
@@ -355,9 +357,9 @@ class Metadata(unittest.TestCase):
         self.release['assets'][0]['browser_download_url']='https://example.com/bttv.apk'
         with self.assertRaises(ValueError):block(self.proof,self.release,122)
 
-    def test_prerelease_excluded(self):
+    def test_valid_prerelease_metadata_allowed(self):
         self.release['prerelease']=True
-        with self.assertRaises(ValueError):block(self.proof,self.release,122)
+        self.assertTrue(block(self.proof,self.release,122).startswith('```bttv-update\n'))
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

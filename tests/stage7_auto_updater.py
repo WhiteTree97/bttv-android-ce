@@ -27,9 +27,11 @@ class AutomaticUpdaterTests(unittest.TestCase):
   self.assertEqual(strings['bttv_auto_update_checks_enabled_secondary'],'Check for new BTTV versions periodically and notify me when an update is available.')
  def test_no_manifest_or_build_changes(self):
   for p in ['patches/AndroidManifest.xml.patch','mod/app/build.gradle','bttv.manifest.json','build','buildsource','disassemble']:
-   self.assertEqual(read(p),old(p),p)
+   # Accepted port infrastructure predates this community-updater change.
+   accepted=subprocess.check_output(['git','show','7e40d52f76b74e0809836afd7ff8823317df436b:'+p],cwd=R).decode().replace('\r\n','\n')
+   self.assertEqual(read(p),accepted,p)
  def test_legacy_remains_dormant(self):
-  for name in ['Updater','UpdaterActivity','UpdaterJobService','Notifications']:
+  for name in ['UpdaterActivity','UpdaterJobService','Notifications']:
    p=P+'updater/'+name+'.java';self.assertEqual(read(p),old(p))
   for name in ['AutoUpdateChecker','AutoUpdateState']:
    src=read(P+'updater/'+name+'.java')
@@ -40,19 +42,19 @@ class AutomaticUpdaterTests(unittest.TestCase):
   self.assertNotIn('.download(',src);self.assertNotIn('startActivity(',src);self.assertNotIn('prepareInstall(',src)
   c=read(P+'updater/UpdateController.java');self.assertEqual(c.count('new ThreadPoolExecutor('),1)
   self.assertIn('automatic==null && (!cleaned',c);self.assertIn('automaticGeneration==',c)
-  self.assertIn('if(!automatic.enabled())',c);self.assertIn('UpdateTransfer.metadata(token,source)',c)
+  self.assertIn('if(!automatic.enabled())',c);self.assertIn('UpdateTransfer.discover(UpdateVerifier.installed(context),token,source)',c)
   self.assertIn('new ArrayBlockingQueue<>(1)',c);self.assertNotIn('startActivity(',c)
  def test_accepted_parser_and_verifier_security(self):
   self.assertEqual(read(P+'updater/UpdateVerifier.java'),old(P+'updater/UpdateVerifier.java'))
   src=read(P+'updater/UpdateRelease.java')
-  for required in ['https://api.github.com/repos/bttv-android/bttv/releases/latest','code<=installed.code','boundedJson(compatibility)',
-                   'signer.equals(hash(installed.signer))','PACKAGE.equals','assetUrl(url,tag,assetName)','json.getBoolean("prerelease")']:
+  for required in ['UpdateSource.releasesPage(1)','code<=installed.code','boundedJson(compatibility)',
+                   'signer.equals(hash(installed.signer))','PACKAGE.equals','assetUrl(url,tag,assetName)','json.get("prerelease") instanceof Boolean']:
    self.assertIn(required,src)
   for required in ['setInstanceFollowRedirects(false)','c.setConnectTimeout(15000)','c.setReadTimeout(20000)','cancel.check()','MAX_METADATA']:
    self.assertIn(required,read(P+'updater/UpdateTransfer.java'))
  def test_manual_dialog_flow_unchanged_except_description(self):
   p=P+'updater/UpdateDialog.java'
-  self.assertEqual(read(p),old(p).replace('Official releases only · Manual checks only','Official releases only · Downloads and installation require your approval'))
+  self.assertEqual(read(p),old(p).replace('Official releases only · Manual checks only', 'Releases: \"+UpdateSource.REPOSITORY+\" · Stable and beta\\nDownloads and installation require your approval'))
  def test_foreground_lifecycle_and_safe_notice(self):
   src=read(P+'updater/AutoUpdateChecker.java')
   for required in ['if(instance!=null','ActivityLifecycleCallbacks','onActivityResumed','onActivityDestroyed','WeakReference<Activity>',

@@ -43,7 +43,7 @@ find "$TMP_DIR" -maxdepth 1 -type f -name '$r8$backportedMethods$*.smali' -exec 
         self.assertEqual(read(p),expected)
         subprocess.run(['git','apply','--numstat',p],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
     def test_legacy_remains_dormant(self):
-        for n in ['Updater','UpdaterActivity','UpdaterJobService','Notifications']:
+        for n in ['UpdaterActivity','UpdaterJobService','Notifications']:
             p=f'mod/app/src/main/java/bttv/updater/{n}.java';self.assertEqual(read(p),old(p))
         for p in NEW:
             if '/java/' not in p:continue
@@ -52,7 +52,7 @@ find "$TMP_DIR" -maxdepth 1 -type f -name '$r8$backportedMethods$*.smali' -exec 
                 self.assertNotIn(forbidden,source,p)
     def test_origin_and_fail_closed_verifier(self):
         parser=read('mod/app/src/main/java/bttv/updater/UpdateRelease.java')
-        self.assertIn('https://api.github.com/repos/bttv-android/bttv/releases/latest',parser)
+        self.assertIn('UpdateSource.releasesPage(1)',parser)
         verifier=read('mod/app/src/main/java/bttv/updater/UpdateVerifier.java')
         for check in ['signature.isVerified()','getSignerCertificates().size()==1','signer.equals(installed.signer)',
                       'p.getLongVersionCode()>installed.code','nativeAndZip','UpdateTransfer.digest(apk,cancel)']:

@@ -45,7 +45,7 @@ public class AutoUpdateStateTest {
  @Test public void actualParserNewerEligible()throws Exception{assertNotNull(release(1208000339L));}
  @Test public void actualParserRejectsWrongTwitchBase()throws Exception{byte[] b={1};try{UpdateRelease.inspect(UpdaterHostTest.release(UpdaterHostTest.compatibility(b).put("twitchVersion","19.0.1"),b).toString(),UpdaterHostTest.installed());fail();}catch(UpdateRelease.Problem p){assertEquals(UpdateRelease.Outcome.UNSUPPORTED,p.outcome);}}
  @Test public void actualParserMissingApkCategory()throws Exception{byte[] b={1};JSONObject j=UpdaterHostTest.release(UpdaterHostTest.compatibility(b),b).put("assets",new JSONArray());try{UpdateRelease.inspect(j.toString(),UpdaterHostTest.installed());fail();}catch(UpdateRelease.Problem p){assertEquals(UpdateRelease.Outcome.MISSING_ASSET,p.outcome);}}
- @Test public void actualParserPrereleaseAndDraftPolicyUnchanged()throws Exception{byte[] b={1};for(String key:new String[]{"draft","prerelease"}){JSONObject j=UpdaterHostTest.release(UpdaterHostTest.compatibility(b),b).put(key,true);UpdateRelease.Inspection r=UpdateRelease.inspect(j.toString(),UpdaterHostTest.installed());assertNull(r.candidate);assertEquals(UpdateRelease.Outcome.UNSUPPORTED,r.outcome);}}
+ @Test public void actualParserDraftExcludedAndValidatedPrereleaseAllowed()throws Exception{byte[] b={1};JSONObject j=UpdaterHostTest.release(UpdaterHostTest.compatibility(b),b).put("draft",true);UpdateRelease.Inspection r=UpdateRelease.inspect(j.toString(),UpdaterHostTest.installed());assertNull(r.candidate);assertEquals(UpdateRelease.Outcome.UNSUPPORTED,r.outcome);j.put("draft",false).put("prerelease",true);assertNotNull(UpdateRelease.inspect(j.toString(),UpdaterHostTest.installed()).candidate);}
  @Test public void malformedMetadataIsCategoricalAndSafe()throws Exception{for(String j:new String[]{"{","[]","null",""})try{UpdateRelease.inspect(j,UpdaterHostTest.installed());fail();}catch(UpdateRelease.Problem p){assertEquals(UpdateRelease.Outcome.INVALID_METADATA,p.outcome);}}
 }
 '''
@@ -80,7 +80,7 @@ public class AutoUpdateAndroidTest {
   Signature signer=new Signature(new byte[]{1,2,3});PackageInfo p=new PackageInfo();p.packageName=UpdateRelease.PACKAGE;p.versionName="0.43.2-beta";p.setLongVersionCode(1208000338L);
   p.applicationInfo=app.getApplicationInfo();p.signingInfo=new SigningInfo();((ShadowSigningInfo)Shadow.extract(p.signingInfo)).setSignatures(new Signature[]{signer});
   ((ShadowPackageManager)Shadow.extract(app.getPackageManager())).installPackage(p);
-  byte[] b={1};JSONObject c=UpdaterHostTest.compatibility(b).put("signerSha256",UpdateVerifier.installed(app).signer);body=UpdaterHostTest.release(c,b).toString();
+  byte[] b={1};JSONObject c=UpdaterHostTest.compatibility(b).put("signerSha256",UpdateVerifier.installed(app).signer);body=new JSONArray().put(UpdaterHostTest.release(c,b)).toString();
   controller=new UpdateController(app,url->{
    assertEquals("metadata URL only",UpdateRelease.API,url.toString());calls.incrementAndGet();
    if(entered!=null)entered.countDown();
