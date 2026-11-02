@@ -18,6 +18,6 @@ newPRWelcomeComment: >
 # Configuration for first-pr-merge - https://github.com/behaviorbot/first-pr-merge
 # Comment to be posted to on pull requests merged by a first time user
 firstPRMergeComment: >
-  Thanks for your contribution to bttv-android! :tada:
+  Thanks for your contribution to BTTV Android CE! :tada:
   
   ![PepoDance](https://cdn.betterttv.net/emote/5a6edb51f730010d194bdd46/3x)

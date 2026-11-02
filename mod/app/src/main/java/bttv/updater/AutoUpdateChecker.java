@@ -128,7 +128,7 @@ public final class AutoUpdateChecker implements Application.ActivityLifecycleCal
         int pad=Math.round(8*activity.getResources().getDisplayMetrics().density);
         row.setPadding(pad,pad,pad,pad); row.setBackgroundColor(0xff18181b); row.setElevation(pad);
         TextView text=new TextView(activity); text.setTextColor(0xffefeff1);
-        text.setText("BTTV "+release.name+" update available");
+        text.setText("BTTV Android CE "+release.name+" update available");
         row.addView(text,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1));
         Button view=new Button(activity); view.setText("View update"); row.addView(view);
         Button later=new Button(activity); later.setText("Later"); row.addView(later);

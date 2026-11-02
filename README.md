@@ -1,22 +1,32 @@
 [![license: MIT][license-badge]][license-file]
-[![bttv version][bttv-version]][latest-release]
+[![BTTV Android CE release][bttv-version]][latest-release]
 ![build on][base-version]
-![GitHub release (latest by date)][downloads-latest]
-![GitHub all releases][downloads-total]
-[![Discord][discord-badge]][discord-invite]
+![CE latest release downloads, including prereleases][downloads-latest]
+![CE downloads across all releases][downloads-total]
+[![Original BTTV Discord][discord-badge]][discord-invite]
 
-# bttv-android
+# BTTV Android CE
 
+**BTTV Android CE** is an unofficial, independently community-maintained
+continuation of [BTTV Android][upstream-project], based on the Twitch 31.2.0
+port. It adds BetterTTV, FrankerFaceZ and 7TV emotes to the Twitch Android
+Mobile<sup><a href="#no-tv">1</a></sup> app. It is not an official upstream BTTV
+release and is not endorsed by the original maintainers.
 
-A mod of the Twitch Android Mobile<sup><a href="#no-tv">1</a></sup> App adding BetterTTV, FrankerFaceZ and 7TV emotes
+Community source, issues and releases: [WhiteTree97/bttv-android-ce][ce-project].
 
 > This project is **not affiliated** to Twitch Interactive Inc, NightBot LLC, Dan Salvato LLC or the SevenTV project!
 > THE SOFTWARE IS PROVIDED "AS IS", **WITHOUT WARRANTY OF ANY KIND**!
 
  [![Hero image][hero-img]][hero-img]
 
-## We need you
-**You can help this project by contributing translations on [crowdin][crowdin]**.
+## Contributing and support
+
+Report CE bugs and feature requests in the [CE issue tracker][ce-issues], rather
+than the original project's tracker. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The linked [Discord][discord-invite] and [Crowdin translation project][crowdin]
+belong to the original BTTV community; they are retained as upstream resources,
+not presented as CE-managed support or translation services.
 
 ## Features
 
@@ -54,15 +64,20 @@ A mod of the Twitch Android Mobile<sup><a href="#no-tv">1</a></sup> App adding B
 - 7TV zero-width emotes are not supported.
 - Personal emotes are not currently supported.
 - Push notifications may not work.
-- <span id="no-tv">bttv-android is not designed for Android TV, as it modifies the Twitch mobile app rather than the Twitch Android TV app.</span>
+- <span id="no-tv">BTTV Android CE is not designed for Android TV, as it modifies the Twitch mobile app rather than the Twitch Android TV app.</span>
 
 # Install
 
 1. Skim through this [guide on how to enable third-party app installations][enable-guide].
-2. Go to the [latest release][latest-release] page and download the mod APK.
-   BTTV can periodically check for new releases. Automatic update checking can be
-   enabled or disabled in BTTV Settings. Downloading and installing updates
-   requires confirmation.
+2. Go to the [CE releases][latest-release] page, including published beta/prerelease
+   releases, and download the CE APK attached to the chosen release. If no APK
+   is listed, no CE download is available there; do not substitute an upstream
+   APK or an unsigned intermediate. BTTV Android CE can periodically check for new releases. Automatic update checking can be
+   enabled or disabled in BTTV Android CE Settings. Downloading and installing updates
+   requires confirmation. CE updates come from `WhiteTree97/bttv-android-ce`.
+   A different signing certificate cannot update an existing upstream/test-signed
+   installation in place. Review the [signing and migration requirements](RELEASING.md)
+   before choosing an installation path; this guide does not authorize wiping app data.
 
    [![How to download][howtodl]][latest-release]
 
@@ -199,19 +214,25 @@ Local builds use the signer's test identity when no `KS` is supplied.
 They cannot necessarily update an installation signed by a different key.
 See [release and signing requirements](RELEASING.md) for maintainer builds.
 
-This repo is mirrored on [Gitlab][mirror-gitlab].
+The [GitLab mirror][mirror-gitlab] belongs to the original BTTV project; it is
+not a mirror or download source for CE.
+
+**Original project attribution (preserved):**
 
 Made with ♥️ by [@FoseFx](https://github.com/FoseFx) and contributors. MIT License.
 
-[license-badge]: https://img.shields.io/github/license/bttv-android/bttv?style=flat-square
+[license-badge]: https://img.shields.io/github/license/WhiteTree97/bttv-android-ce?style=flat-square
 [license-file]: ./LICENSE
-[bttv-version]: https://img.shields.io/github/v/release/bttv-android/bttv?style=flat-square
+[ce-project]: https://github.com/WhiteTree97/bttv-android-ce
+[ce-issues]: https://github.com/WhiteTree97/bttv-android-ce/issues
+[upstream-project]: https://github.com/bttv-android/bttv
+[bttv-version]: https://img.shields.io/github/v/release/WhiteTree97/bttv-android-ce?include_prereleases&style=flat-square
 [base-version]: https://img.shields.io/badge/build%20on-v31.2.0-blueviolet?style=flat-square
-[downloads-latest]: https://img.shields.io/github/downloads/bttv-android/bttv/latest/total?color=yellow&style=flat-square
-[downloads-total]: https://img.shields.io/github/downloads/bttv-android/bttv/total?color=yellowgreen&label=downloads%20total&style=flat-square
-[latest-release]: https://github.com/bttv-android/bttv/releases/latest
+[downloads-latest]: https://img.shields.io/github/downloads-pre/WhiteTree97/bttv-android-ce/latest/total?color=yellow&style=flat-square
+[downloads-total]: https://img.shields.io/github/downloads/WhiteTree97/bttv-android-ce/total?color=yellowgreen&label=downloads%20total&style=flat-square
+[latest-release]: https://github.com/WhiteTree97/bttv-android-ce/releases
 [crowdin]: https://crowdin.com/project/bttv-android
-[discord-badge]: https://img.shields.io/discord/856518013292249089?color=blue&label=discord&logo=discord&logoColor=white&style=flat-square
+[discord-badge]: https://img.shields.io/discord/856518013292249089?color=blue&label=upstream%20discord&logo=discord&logoColor=white&style=flat-square
 [discord-invite]: https://discord.gg/7jgDGdXXqN
 [enable-guide]: https://www.howtogeek.com/696504/how-to-install-third-party-app-stores-on-android/
 [howtodl]: ./.github/dltut.webp?raw=true
@@ -226,6 +247,9 @@ Made with ♥️ by [@FoseFx](https://github.com/FoseFx) and contributors. MIT L
 [build-companion]: https://github.com/bttv-android/build-companion/releases/latest
 [mirror-gitlab]: https://gitlab.com/fosefx/bttv
 
+
+The following gallery preserves the original BTTV contributor credits and links.
+It does not imply endorsement of this community continuation.
 
 ## Contributors ✨
 

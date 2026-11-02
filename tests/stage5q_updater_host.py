@@ -32,10 +32,22 @@ public class UpdaterHostTest {
   }
   JSONObject same=compatibility(b).put("releaseTag","v0.43.2-beta").put("versionName","0.43.2-beta");
   assertNotNull(UpdateRelease.inspect(release(same,b).toString(),installed()).candidate);
-  for(String name:new String[]{"0.44.0","0.45.0-beta"}) {
+  for(String name:new String[]{"0.44.0","0.44.0-beta.2","0.45.0-beta"}) {
    JSONObject c=compatibility(b).put("versionName",name).put("releaseTag","v"+name);
    assertNotNull(UpdateRelease.inspect(release(c,b).toString(),installed()).candidate);
   }
+ }
+ @Test public void proposedCeBetaPairUsesStrictCodeOrdering()throws Exception {
+  byte[] b={1,2,3};
+  UpdateRelease.Installed first=new UpdateRelease.Installed("0.44.0-beta",1208000339L,CERT,30,ABIS);
+  JSONObject second=compatibility(b).put("versionName","0.44.0-beta.2")
+   .put("releaseTag","v0.44.0-beta.2").put("versionCode",1208000340L);
+  JSONObject beta=release(second,b).put("prerelease",true);
+  assertEquals(1208000340L,UpdateRelease.inspect(beta.toString(),first).candidate.code);
+  assertNull(UpdateRelease.inspect(release(compatibility(b),b).toString(),first).candidate);
+  UpdateRelease.Installed updated=new UpdateRelease.Installed("0.44.0-beta.2",1208000340L,CERT,30,ABIS);
+  assertNull(UpdateRelease.inspect(beta.toString(),updated).candidate);
+  assertNull(UpdateRelease.inspect(release(compatibility(b),b).toString(),updated).candidate);
  }
  @Test public void actualOfficialLegacyIsNotAnUpdate()throws Exception {
   String legacy=Files.readString(Paths.get(System.getProperty("updater.repo"),".tmp/stage5qg/upstream/latest.json"));

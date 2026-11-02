@@ -10,7 +10,7 @@ assignees: ''
 <!--
 
 Before you submit a new issue please make sure it is in scope of this project:
-- bugs in bttv-android
+- bugs in BTTV Android CE
 - features that exist in BTTV
 - features that enhance quality of life (e.g. improving integration with existing Twitch behavior)
 
@@ -20,7 +20,7 @@ Not in scope:
 
 This way the mod does not become bloated and is thus more stable and maintainable.
 
-Also please check opened and closed issues on Github first, maybe somebody else has already opened a similar issue: https://github.com/bttv-android/bttv/issues?q=is%3Aissue
+Also please check opened and closed issues on Github first, maybe somebody else has already opened a similar issue: https://github.com/WhiteTree97/bttv-android-ce/issues?q=is%3Aissue
 
 Thank you!
 

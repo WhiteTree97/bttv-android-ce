@@ -96,7 +96,7 @@ class NativeSettingsTests(unittest.TestCase):
 
     def test_label_and_native_layout_and_stock_destinations(self):
         strings=ET.parse(ROOT/'mod/app/src/main/res/values/strings.xml')
-        self.assertEqual(strings.find("string[@name='bttv_settings_entry_title']").text,'BTTV Settings')
+        self.assertEqual(strings.find("string[@name='bttv_settings_entry_title']").text,'BTTV Android CE Settings')
         holder=(DECODE/'smali_classes6/c120.smali').read_text()
         self.assertIn('const p0, 0x7f0e048a',holder)
         self.assertIn('name="sub_menu_recycler_item" id="0x7f0e048a"', (DECODE/'res/values/public.xml').read_text())

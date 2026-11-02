@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">BTTV</string>
-    <string name="login_landing_title">Welcome to\nBetter Twitch</string>
+    <string name="app_name" translatable="false">BTTV Android CE</string>
+    <string name="login_landing_title">Welcome to\nBTTV Android CE</string>
     <string name="bttv_emote_picker_global_bttv">Global BTTV Emotes</string>
     <string name="bttv_emote_picker_channel_bttv">Channel\'s BTTV Emotes</string>
     <string name="bttv_emote_picker_global_ffz">Global FrankerFaceZ Emotes</string>
@@ -59,7 +59,7 @@
     <string name="bttv_settings_enable_dev_tools">Enable Developer Tools</string>
     <string name="bttv_settings_enable_dev_tools_secondary">Manage experiments, latency and other settings. Proceed with caution.</string>
     <string name="bttv_auto_update_checks_enabled">Automatically check for updates</string>
-    <string name="bttv_auto_update_checks_enabled_secondary">Check for new BTTV versions periodically and notify me when an update is available.</string>
+    <string name="bttv_auto_update_checks_enabled_secondary">Check for new BTTV Android CE versions periodically and notify me when an update is available.</string>
     <string name="bttv_settings_invoke_update_check">Check for updates now</string>
     <string name="bttv_highlight_dia_list_empty">There\'s nothing here\n¯\\_(ツ)_/¯</string>
     <!-- Crowdin thinks '<user>' is something special. It is not, feel free to translate it. -->
@@ -74,7 +74,7 @@
     <string name="bttv_settings_hide_twitch_stories">Hide Twitch Stories</string>
     <string name="bttv_settings_hide_twitch_stories_description">Hide the Stories section on the Home screen</string>
     <string name="bttv_settings_always_show_chat_timestamps">Always Show Chat Timestamps</string>
-    <string name="bttv_settings_entry_title">BTTV Settings</string>
+    <string name="bttv_settings_entry_title">BTTV Android CE Settings</string>
     <string name="bttv_settings_section_emotes">Emotes</string>
     <string name="bttv_settings_section_chat">Chat</string>
     <string name="bttv_settings_section_other">Other Features</string>

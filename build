@@ -32,7 +32,7 @@ VERSION=$(jq -r ".version" bttv.manifest.json)
 VERSIONCODE=$(jq -r ".versionCode" bttv.manifest.json)
 sed -i "s/android:versionCode=\".*\"/android:versionCode=\"${VERSIONCODE}\"/" "$1/AndroidManifest.xml"
 sed -i "s/android:versionName=\".*\"/android:versionName=\"${VERSION}\"/" "$1/AndroidManifest.xml"
-sed -i "s/android:text=\"BTTV .*\"/android:text=\"BTTV ${VERSION}\"/" "$1/res/layout/settings_logout_footer.xml"
+sed -i "s/android:text=\"BTTV .*\"/android:text=\"BTTV Android CE ${VERSION}\"/" "$1/res/layout/settings_logout_footer.xml"
 
 cd "$1"
 

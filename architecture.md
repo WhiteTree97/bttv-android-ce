@@ -64,9 +64,9 @@ This module consists of stubs for classes that exist in the twitch app. The app 
 For the Webp-Glide library we need to call certain methods and use classes that do not exist in the stock app. This module is an App which simply registers the WebP library. In the buildsource step we then copy the needed files from this module into the bundle.
 
 
-If anything is left unclear feel free to [create a new discussion][new-disc] here on github.
+If anything is left unclear, [ask a CE question][new-disc] in the community repository.
 
-[new-disc]: https://github.com/bttv-android/bttv/discussions/new
+[new-disc]: https://github.com/WhiteTree97/bttv-android-ce/issues/new/choose
 [build-img]: ./.github/docs/build.png?raw=true
 [source-img]: ./.github/docs/source.png?raw=true
 [inter-img]: ./.github/docs/interaction.png?raw=true

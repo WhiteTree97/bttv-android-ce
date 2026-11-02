@@ -7,7 +7,7 @@ body:
     id: checked-existing-issues
     attributes:
       label: Existing Issues
-      description: https://github.com/bttv-android/bttv/issues?q=is%3Aissue
+      description: https://github.com/WhiteTree97/bttv-android-ce/issues?q=is%3Aissue
       options:
         - label: I have searched for existing issues, this is not a duplicate.
           required: true
@@ -15,9 +15,9 @@ body:
     id: checked-native-twitch
     attributes:
       label: Unmodded Twitch
-      description: bttv-android does not fix bugs introduced by Twitch themselves
+      description: BTTV Android CE does not fix bugs introduced by Twitch themselves
       options:
-        - label: I have checked and this issue only occurs using bttv-android and not with the unmodded Twitch App
+        - label: I have checked and this issue only occurs using BTTV Android CE and not with the unmodded Twitch App
           required: false
   - type: textarea
     id: what-happened
@@ -30,9 +30,9 @@ body:
   - type: input
     id: bttv-version
     attributes:
-      label: bttv-android version
+      label: BTTV Android CE version
       description: You find this in the App's settings below the Twitch version code
-      placeholder: e.g. v0.27.0-beta
+      placeholder: e.g. 0.44.0-beta (include the versionCode if available)
     validations:
       required: false
   - type: input

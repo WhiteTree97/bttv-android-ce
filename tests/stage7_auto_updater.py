@@ -24,11 +24,12 @@ class AutomaticUpdaterTests(unittest.TestCase):
   sections=read(P+'settings/SettingsSections.java');self.assertIn('case AutoUpdateChecksEnabled:',sections);self.assertIn('case InvokeUpdateCheck:',sections)
   strings={e.get('name'):e.text for e in ET.fromstring(read('mod/app/src/main/res/values/strings.xml'))}
   self.assertEqual(strings['bttv_auto_update_checks_enabled'],'Automatically check for updates')
-  self.assertEqual(strings['bttv_auto_update_checks_enabled_secondary'],'Check for new BTTV versions periodically and notify me when an update is available.')
+  self.assertEqual(strings['bttv_auto_update_checks_enabled_secondary'],'Check for new BTTV Android CE versions periodically and notify me when an update is available.')
  def test_no_manifest_or_build_changes(self):
   for p in ['patches/AndroidManifest.xml.patch','mod/app/build.gradle','bttv.manifest.json','build','buildsource','disassemble']:
    # Accepted port infrastructure predates this community-updater change.
-   accepted=subprocess.check_output(['git','show','7e40d52f76b74e0809836afd7ff8823317df436b:'+p],cwd=R).decode().replace('\r\n','\n')
+   accepted=subprocess.check_output(['git','show','e473bf2892f4498ca8472cd5751ed7aa9343ad99:'+p],cwd=R).decode().replace('\r\n','\n')
+   if p=='build': accepted=accepted.replace('android:text=\\\"BTTV ${VERSION}\\\"', 'android:text=\\\"BTTV Android CE ${VERSION}\\\"')
    self.assertEqual(read(p),accepted,p)
  def test_legacy_remains_dormant(self):
   for name in ['UpdaterActivity','UpdaterJobService','Notifications']:
@@ -54,7 +55,9 @@ class AutomaticUpdaterTests(unittest.TestCase):
    self.assertIn(required,read(P+'updater/UpdateTransfer.java'))
  def test_manual_dialog_flow_unchanged_except_description(self):
   p=P+'updater/UpdateDialog.java'
-  self.assertEqual(read(p),old(p).replace('Official releases only · Manual checks only', 'Releases: \"+UpdateSource.REPOSITORY+\" · Stable and beta\\nDownloads and installation require your approval'))
+  expected=old(p).replace('Official releases only · Manual checks only', 'Releases: \"+UpdateSource.REPOSITORY+\" · Stable and beta\\nDownloads and installation require your approval')
+  for before,after in [('Installed BTTV ','Installed BTTV Android CE '),('\\n\\nBTTV ','\\n\\nBTTV Android CE '),('allow BTTV to request','allow BTTV Android CE to request')]: expected=expected.replace(before,after)
+  self.assertEqual(read(p),expected)
  def test_foreground_lifecycle_and_safe_notice(self):
   src=read(P+'updater/AutoUpdateChecker.java')
   for required in ['if(instance!=null','ActivityLifecycleCallbacks','onActivityResumed','onActivityDestroyed','WeakReference<Activity>',

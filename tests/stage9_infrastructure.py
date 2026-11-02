@@ -57,11 +57,23 @@ class Infrastructure(unittest.TestCase):
     def test_readme_original_assets_and_contributors(self):
         original = subprocess.check_output(['git', 'show', '14e991d2e9d0e708629e54ef9a66499e61d4d01d:README.md'], cwd=ROOT).decode()
         current = (ROOT/'README.md').read_text()
-        self.assertEqual(original[:original.index('## Features')], current[:current.index('## Features')])
+        self.assertIn('# BTTV Android CE',current)
+        self.assertIn('unofficial, independently community-maintained',current)
+        self.assertIn('[![Hero image][hero-img]][hero-img]',current)
         gallery = original[original.index('## Contributors ✨'):]
         self.assertEqual(gallery, current[current.index('## Contributors ✨'):current.index('\n## Acknowledgments')])
         for line in original.splitlines():
             if re.match(r'^\[[^]]+\]: ', line):
+                if line.startswith(('[license-badge]:','[bttv-version]:','[downloads-latest]:','[downloads-total]:','[latest-release]:')):
+                    line=line.replace('bttv-android/bttv','WhiteTree97/bttv-android-ce')
+                if line.startswith('[bttv-version]: '):
+                    line=line.replace('?style=', '?include_prereleases&style=')
+                if line.startswith('[downloads-latest]: '):
+                    line=line.replace('/github/downloads/', '/github/downloads-pre/')
+                if line.startswith('[latest-release]: '):
+                    line=line.removesuffix('/latest')
+                if line.startswith('[discord-badge]: '):
+                    line=line.replace('label=discord&','label=upstream%20discord&')
                 if line.startswith('[base-version]: '):
                     line=line.replace('build%20on-v19.0.1-', 'build%20on-v31.2.0-')
                 self.assertIn(line, current)

@@ -1,14 +1,14 @@
-# CONTRIBUTING
+# Contributing to BTTV Android CE
 
 # Issues
 
-Issues are used for tracking new features, bugs or other tasks. If you have a question don't hesitate and open a [new discussion][new-discussion]!
+Issues are used for tracking new features, bugs or other tasks. If you have a question don't hesitate and open a [CE question/issue][new-discussion]!
 Please make sure that your issue contains all nesessary information to avoid waiting times. All communication, including issues, should be written in understandable english.
 
 ## Scope of the Project
 
 Before you submit a new issue please make sure it is in scope of this project:
-- bugs in bttv-android
+- bugs in BTTV Android CE
 - features that exist in BTTV
 - features that enhance quality of life (e.g. improving integration with existing Twitch behavior)
 
@@ -21,12 +21,18 @@ This way the mod does not become bloated and is thus more stable and maintainabl
 
 # PRs
 
-Most PRs have an associated issue, if you PR is one of those make sure to reference the issue. Your PR will be reviewed and commented please prepare yourself for that, we do not want to end up in stale PRs. It's ok (and encouraged) to open an PR even when you are not finished. Please mark those PRs as drafts. If you have any questions feel free to tag @bttv-android/developers and somebody will help you out :)
+Most PRs have an associated issue, if you PR is one of those make sure to reference the issue. Your PR will be reviewed and commented please prepare yourself for that, we do not want to end up in stale PRs. It's ok (and encouraged) to open an PR even when you are not finished. Please mark those PRs as drafts. For CE questions, contact the maintainers in this repository; do not direct CE support requests to the original upstream team.
 
 Before you undraft a PR follow the checklist in the PR template!
 
 
 # Setup
+
+> The detailed workspace notes below are historical contributor guidance. Use the
+> current [README](README.md#build-it-yourself) and [RELEASING.md](RELEASING.md)
+> for isolated Twitch 31.2.0 builds and signing. Original credits and license
+> notices must remain intact. Do not regenerate the original contributor gallery
+> without reviewing how its upstream attribution links will be preserved.
 
 > Read the build it yourself part (the hard way) in the README aswell!
 
@@ -89,4 +95,4 @@ Everytime you get a new version of the code (e.g. using git pull or git checkout
 
 
 
-[new-discussion]: https://github.com/bttv-android/bttv/discussions/new
+[new-discussion]: https://github.com/WhiteTree97/bttv-android-ce/issues/new/choose

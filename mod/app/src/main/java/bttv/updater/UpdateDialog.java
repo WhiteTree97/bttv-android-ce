@@ -33,7 +33,7 @@ public final class UpdateDialog implements UpdateController.Observer {
         information.setTextColor(0xffefeff1); result.setTextColor(0xffefeff1);
         try {
             UpdateRelease.Installed installed=UpdateVerifier.installed(activity);
-            information.setText("Installed BTTV "+installed.name+" ("+installed.code+")\nReleases: "+UpdateSource.REPOSITORY+" · Stable and beta\nDownloads and installation require your approval\n\n");
+            information.setText("Installed BTTV Android CE "+installed.name+" ("+installed.code+")\nReleases: "+UpdateSource.REPOSITORY+" · Stable and beta\nDownloads and installation require your approval\n\n");
         } catch(Exception e) { information.setText("Installed identity unavailable. Updates will remain blocked.\n\n"); }
         progress=new ProgressBar(activity,null,android.R.attr.progressBarStyleHorizontal);
         layout.addView(information); layout.addView(progress); layout.addView(result);
@@ -58,7 +58,7 @@ public final class UpdateDialog implements UpdateController.Observer {
     }
     @Override public void changed(UpdateSession.Snapshot state) {
         if(disposed || activity.isFinishing() || activity.isDestroyed())return;
-        information.setContentDescription("Installed BTTV version and manual update policy");
+        information.setContentDescription("Installed BTTV Android CE version and manual update policy");
         boolean busy=controller.session.running();
         progress.setVisibility(busy?View.VISIBLE:View.GONE);
         progress.setIndeterminate(state.total<=0 || state.state!=UpdateSession.State.DOWNLOADING);
@@ -66,7 +66,7 @@ public final class UpdateDialog implements UpdateController.Observer {
         String text=state.message;
         if(state.release!=null) {
             UpdateRelease r=state.release;
-            text+="\n\nBTTV "+r.name+" ("+r.code+")\nTwitch "+r.twitchVersion+" · Android API "+r.minSdk+"+\n"+
+            text+="\n\nBTTV Android CE "+r.name+" ("+r.code+")\nTwitch "+r.twitchVersion+" · Android API "+r.minSdk+"+\n"+
                     r.abis+"\nDownload: "+r.size+" bytes\n\n"+r.notes;
         }
         result.setText(text); // Plain TextView only, no Markdown/HTML/link execution.
@@ -86,7 +86,7 @@ public final class UpdateDialog implements UpdateController.Observer {
         else if(state.state==UpdateSession.State.READY) {
             if(!activity.getPackageManager().canRequestPackageInstalls()) {
                 permissionDialog=new AlertDialog.Builder(activity,android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                        .setMessage("Android must allow BTTV to request app installation. You can decline. Returning here never installs automatically.")
+                        .setMessage("Android must allow BTTV Android CE to request app installation. You can decline. Returning here never installs automatically.")
                         .setNegativeButton("Cancel",null).setPositiveButton("Open Android settings",(d,w)-> {
                             try { activity.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName()))); }
                             catch(Exception e) { result.setText("Android installation settings are unavailable. Nothing was installed."); }

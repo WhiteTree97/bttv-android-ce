@@ -85,6 +85,8 @@ class CommunityUpdater(unittest.TestCase):
         self.assertIn('controller.checkAutomatically(', (path/'AutoUpdateChecker.java').read_text())
         for name in ['UpdateVerifier.java','AutoUpdateState.java','AutoUpdateChecker.java','UpdateSession.java']:
             baseline=subprocess.check_output(['git','show','7e40d52f76b74e0809836afd7ff8823317df436b:mod/app/src/main/java/bttv/updater/'+name],cwd=ROOT)
+            if name=='AutoUpdateChecker.java':
+                baseline=baseline.replace(b'text.setText("BTTV "+release.name', b'text.setText("BTTV Android CE "+release.name')
             self.assertEqual((path/name).read_bytes().replace(b'\r\n',b'\n'),baseline.replace(b'\r\n',b'\n'),name)
 
     def test_legacy_network_path_fails_closed(self):
