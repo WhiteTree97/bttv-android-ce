@@ -17,15 +17,18 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
       - name: Infrastructure, notices, patch syntax and source preservation contracts
-        run: python3 tests/stage9_infrastructure.py
+        run: |
+          python3 tests/stage9_infrastructure.py
+          python3 tests/community_updater.py
+          python3 tests/community_signing.py
       - name: Shell syntax
         run: |
           for script in initworkspace disassemble buildsource build patch tools/docker_build.sh; do
@@ -41,28 +44,27 @@ jobs:
             git diff --check
           fi
 
-  signed_candidate:
-    # Untrusted PR code never receives signing secrets. No release/publish job.
-    if: github.event_name == 'workflow_dispatch' && inputs.build_apk && github.repository == 'bttv-android/bttv' && github.ref == 'refs/heads/master'
+  unsigned_candidate:
+    # Manual opt-in on this repository's reviewed default branch; never PR code.
+    if: github.event_name == 'workflow_dispatch' && inputs.build_apk && vars.COMMUNITY_SIGNING_ENABLED == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     needs: checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Require explicit maintainer configuration
+      - name: Require community repository configuration
         env:
           INPUT_URL: ${{ vars.TWITCH_31_INPUT_URL }}
-          EXPECTED_SIGNER_SHA256: ${{ vars.RELEASE_SIGNER_SHA256 }}
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE }}
-          KSPASS: ${{ secrets.KSPASS }}
         run: |
           python3 - <<'PY'
-          import os, re, urllib.parse
+          import os, sys, urllib.parse
+          sys.path.insert(0, 'tools')
+          from release_metadata import repository
+          assert repository() == os.environ['GITHUB_REPOSITORY']
           u = urllib.parse.urlsplit(os.environ['INPUT_URL'])
-          assert u.scheme == 'https' and u.hostname and not u.username and not u.password
-          assert re.fullmatch('[0-9a-fA-F]{64}', os.environ['EXPECTED_SIGNER_SHA256'])
-          assert os.environ['KEYSTORE_BASE64'] and os.environ['KSPASS']
+          assert u.scheme == 'https' and u.hostname and not u.username and not u.password and not u.query and not u.fragment
           PY
       - name: Retrieve and validate approved Twitch input
         env:
@@ -70,39 +72,129 @@ jobs:
         run: |
           curl --fail --location --proto '=https' --proto-redir '=https' --retry 3 "$INPUT_URL" --output twitch.zip
           python3 tools/prepare_twitch_input.py twitch.zip
-      - name: Build toolchain
+      - name: Build toolchain without signing inputs
         run: docker build --tag bttv-builder:candidate .
-      - name: Create ephemeral signing input
+      - name: Prepare unsigned intermediate without any signing mount or secret
+        run: |
+          mkdir -p dist/unsigned
+          docker run --rm --entrypoint python3 \
+            --mount type=bind,source="$PWD",target=/source,readonly \
+            --mount type=bind,source="$PWD/dist/unsigned",target=/output \
+            bttv-builder:candidate /source/tools/build_production.py \
+            --input /source/twitch.zip --workspace /tmp/bttv-build --output /output/build --unsigned
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-candidate-${{ github.sha }}
+          path: |
+            dist/unsigned/build/unsigned.apk
+            dist/unsigned/build/unsigned.json
+          if-no-files-found: error
+          retention-days: 1
+
+  signed_candidate:
+    # Configure required reviewers and an exact default-branch deployment policy
+    # on this environment BEFORE adding its secrets. No repository-level keys.
+    if: github.event_name == 'workflow_dispatch' && inputs.build_apk && vars.COMMUNITY_SIGNING_ENABLED == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: [checks, unsigned_candidate]
+    environment: community-release
+    concurrency:
+      group: community-signing-${{ github.repository }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate public signing policy before accessing private inputs
+        env:
+          INPUT_URL: ${{ vars.TWITCH_31_INPUT_URL }}
+          EXPECTED_SIGNER_SHA256: ${{ vars.RELEASE_SIGNER_SHA256 }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, urllib.parse
+          sys.path.insert(0, 'tools')
+          from release_metadata import repository
+          from verify_release_apk import TEST_SIGNER
+          assert repository() == os.environ['GITHUB_REPOSITORY']
+          pin = os.environ['EXPECTED_SIGNER_SHA256']
+          assert re.fullmatch('[0-9a-fA-F]{64}', pin) and pin.upper() != TEST_SIGNER
+          u = urllib.parse.urlsplit(os.environ['INPUT_URL'])
+          assert u.scheme == 'https' and u.hostname and not u.username and not u.password and not u.query and not u.fragment
+          PY
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, current run only
+        with:
+          name: unsigned-candidate-${{ github.sha }}
+          path: dist/unsigned
+      - name: Retrieve independent verification input
+        env:
+          INPUT_URL: ${{ vars.TWITCH_31_INPUT_URL }}
+        run: |
+          curl --fail --location --proto '=https' --proto-redir '=https' --retry 3 "$INPUT_URL" --output twitch.zip
+          python3 tools/prepare_twitch_input.py twitch.zip
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          proof = json.loads(Path('dist/unsigned/unsigned.json').read_text())
+          digest = lambda name: hashlib.sha256(Path(name).read_bytes()).hexdigest().upper()
+          assert proof['unsigned'] is True
+          assert digest('dist/unsigned/unsigned.apk') == proof['sha256']
+          assert digest('twitch.zip') == proof['inputSha256']
+          PY
+      - name: Prepare SDK toolchain before materializing any signing key
+        run: docker build --tag bttv-builder:signing .
+      - name: Materialize protected environment inputs outside checkout
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE }}
+          KSPASS: ${{ secrets.KSPASS }}
         run: |
           python3 - <<'PY'
           import base64, os
           from pathlib import Path
-          p=Path(os.environ['RUNNER_TEMP'])/'bttv-keystore.jks'
-          p.write_bytes(base64.b64decode(os.environ['KEYSTORE_BASE64'], validate=True))
-          p.chmod(0o600)
+          def materialize():
+              encoded, password = os.environ['KEYSTORE_BASE64'], os.environ['KSPASS']
+              if not encoded or len(encoded) > 4*1024*1024 or not password or any(c in password for c in '\r\n\0'):
+                  raise SystemExit('Invalid protected signing inputs')
+              try:
+                  key = base64.b64decode(encoded, validate=True)
+              except Exception:
+                  raise SystemExit('Invalid protected keystore encoding') from None
+              if not key:
+                  raise SystemExit('Empty protected keystore')
+              root = Path(os.environ['RUNNER_TEMP'])/'bttv-signing'
+              root.mkdir(mode=0o700)
+              for name, data in [('keystore.p12', key), ('password', password.encode('utf-8'))]:
+                  fd = os.open(root/name, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                  with os.fdopen(fd, 'wb') as stream:
+                      stream.write(data)
+          try:
+              materialize()
+          except Exception:
+              raise SystemExit('Could not prepare protected signing inputs') from None
           PY
-      - name: Build and verify isolated candidate
+      - name: Offline private signing and complete independent APK verification
         env:
-          KSPASS: ${{ secrets.KSPASS }}
           EXPECTED_SIGNER_SHA256: ${{ vars.RELEASE_SIGNER_SHA256 }}
         run: |
           mkdir -p dist/candidate
-          docker run --rm \
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,size=2g --entrypoint python3 \
             --mount type=bind,source="$PWD",target=/source,readonly \
             --mount type=bind,source="$PWD/dist/candidate",target=/output \
-            --mount type=bind,source="$RUNNER_TEMP/bttv-keystore.jks",target=/run/bttv-keystore.jks,readonly \
-            -e KS=/run/bttv-keystore.jks -e KSPASS -e EXPECTED_SIGNER_SHA256 \
-            bttv-builder:candidate
-      - uses: actions/upload-artifact@v4
+            --mount type=bind,source="$RUNNER_TEMP/bttv-signing/keystore.p12",target=/run/keystore.p12,readonly \
+            --mount type=bind,source="$RUNNER_TEMP/bttv-signing/password",target=/run/password,readonly \
+            -e KS=/run/keystore.p12 -e KSPASS_FILE=/run/password -e EXPECTED_SIGNER_SHA256 -e PYTHONDONTWRITEBYTECODE=1 \
+            bttv-builder:signing /source/tools/sign_release.py \
+            --apk /source/dist/unsigned/unsigned.apk --input /source/twitch.zip --output /output/build
+      - name: Remove runner signing inputs before artifact upload
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/bttv-signing/keystore.p12" "$RUNNER_TEMP/bttv-signing/password"
+          if [ -d "$RUNNER_TEMP/bttv-signing" ]; then rmdir "$RUNNER_TEMP/bttv-signing"; fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: signed-candidate
+          name: signed-candidate-${{ github.sha }}
           path: |
             dist/candidate/build/twitch.apk
             dist/candidate/build/verification.json
           if-no-files-found: error
           retention-days: 3
-      - name: Remove runner signing input
-        if: always()
-        run: rm -f "$RUNNER_TEMP/bttv-keystore.jks"

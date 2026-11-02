@@ -108,13 +108,15 @@ class Infrastructure(unittest.TestCase):
     def test_workflow_secret_and_publication_boundaries(self):
         ci=(ROOT/'.github/workflows/ci.yml').read_text()
         docker=(ROOT/'.github/workflows/docker.yml').read_text()
-        checks=ci[ci.index('  checks:'):ci.index('  signed_candidate:')]
+        checks=ci[ci.index('  checks:'):ci.index('  unsigned_candidate:')]
         self.assertNotIn('secrets.',checks)
         self.assertIn('fetch-depth: 0',checks)
         self.assertIn('git diff --check "$BASE_SHA...HEAD"',checks)
         self.assertNotIn('secrets.',docker)
         self.assertIn("github.event_name == 'workflow_dispatch'",ci)
-        self.assertIn("github.ref == 'refs/heads/master'",ci)
+        self.assertIn("github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",ci)
+        self.assertIn("vars.COMMUNITY_SIGNING_ENABLED == 'true'",ci)
+        self.assertIn("environment: community-release",ci)
         self.assertNotIn('contents: write',ci+docker)
         self.assertNotIn('pull_request_target',ci+docker)
         self.assertNotIn('actions/create-release',ci+docker)
@@ -153,7 +155,7 @@ exit 99
 ''')
             java.chmod(0o755)
             env=dict(os.environ,JAVA_PATH=str(java),APKTOOL_PATH='apktool.jar',UBER_APK_SIGNER_PATH='signer.jar',
-                KS=str(root/'external key.jks'),KSPASS='fixture pass words',FIXTURE_ARGS=str(root/'args'),FIXTURE_STAGE='apktool')
+                KS='',KSPASS='',KSPASS_FILE='',FIXTURE_ARGS=str(root/'args'),FIXTURE_STAGE='apktool')
             first=subprocess.run(['bash',str(ROOT/'build'),str(project)],cwd=root,env=env,capture_output=True)
             self.assertEqual(first.returncode,7);self.assertFalse((root/'args').exists())
             self.assertNotIn(b'Done:',first.stdout)
@@ -161,13 +163,12 @@ exit 99
             second=subprocess.run(['bash',str(ROOT/'build'),str(project)],cwd=root,env=env,capture_output=True)
             self.assertEqual(second.returncode,9);self.assertNotIn(b'Done:',second.stdout)
             args=(root/'args').read_bytes().decode().split('\0')[:-1]
-            self.assertEqual(args[args.index('--ks')+1],env['KS'])
-            self.assertEqual(args[args.index('--ksPass')+1],env['KSPASS'])
-            self.assertEqual(args[args.index('--ksKeyPass')+1],env['KSPASS'])
+            self.assertNotIn('--ks',args)
+            self.assertIn('-a',args)
 
     @unittest.skipUnless(os.name=='posix' and shutil.which('bash') and shutil.which('jq'), 'Linux Bash/jq fixture; run separately in the builder')
     def test_signed_artifact_replacement_success_and_failures(self):
-        for custom_key in [False, True]:
+        for custom_key in [False]:
             for failure, expected in [('', 0), ('remove', 17), ('move', 19), ('signer', 9)]:
                 with self.subTest(custom_key=custom_key, failure=failure or 'success'):
                     with tempfile.TemporaryDirectory(prefix='bttv replacement fixture ') as temp:
@@ -203,7 +204,7 @@ exec /bin/mv "$@"
                             path=bin_dir/name;path.write_text(contents);path.chmod(0o755)
                         env=dict(os.environ,PATH=str(bin_dir)+os.pathsep+os.environ['PATH'],JAVA_PATH='fixture-java',
                             APKTOOL_PATH='apktool.jar',UBER_APK_SIGNER_PATH='signer.jar',
-                            KS=str(root/'external key.jks') if custom_key else '',KSPASS='fixture pass words',
+                            KS='',KSPASS='',KSPASS_FILE='',
                             FIXTURE_ARGS=str(root/'args'),FIXTURE_FAIL=failure,FIXTURE_MOVE=str(root/'move-called'))
                         result=subprocess.run(['bash',str(ROOT/'build'),str(project)],cwd=root,env=env,capture_output=True)
                         self.assertEqual(result.returncode,expected,result.stderr.decode())
@@ -217,13 +218,7 @@ exec /bin/mv "$@"
                         else:
                             self.assertEqual((project/'dist/twitch.apk').read_text(),'signed fixture, not an APK')
                         args=(root/'args').read_bytes().decode().split('\0')[:-1]
-                        if custom_key:
-                            self.assertEqual(args[args.index('--ks')+1],env['KS'])
-                            self.assertEqual(args[args.index('--ksAlias')+1],'bttv-android')
-                            self.assertEqual(args[args.index('--ksPass')+1],env['KSPASS'])
-                            self.assertEqual(args[args.index('--ksKeyPass')+1],env['KSPASS'])
-                        else:
-                            self.assertNotIn('--ks',args)
+                        self.assertNotIn('--ks',args)
 
     def test_manual_tool_path_limitation_documented(self):
         for name in ['README.md', 'RELEASING.md']:

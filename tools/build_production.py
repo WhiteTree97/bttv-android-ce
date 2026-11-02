@@ -21,7 +21,9 @@ INFRA_INPUTS = (
 )
 
 
-def build(source, workspace, output):
+def build(source, workspace, output, unsigned=False):
+    if any(os.environ.get(key) for key in ('KS', 'KSPASS', 'KSPASS_FILE', 'KEYSTORE', 'KEYSTORE_BASE64')):
+        raise ValueError('Signing credentials must not enter the build stage; prepare --unsigned, then use sign_release.py separately')
     source, workspace, output = source.resolve(), workspace.resolve(), output.resolve()
     if workspace.exists() or output.exists():
         raise ValueError("Workspace and output must both be NEW; no caches/artifacts are overwritten")
@@ -36,7 +38,7 @@ def build(source, workspace, output):
         path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
         path.chmod(0o755)
     (workspace / "dist").mkdir()
-    env = dict(os.environ, DOCKER="true")
+    env = dict(os.environ, DOCKER="true", BTTV_UNSIGNED_BUILD='1' if unsigned else '')
     # This identity is for generated, disposable disassembly commits only.
     env.update(GIT_AUTHOR_NAME="BTTV build", GIT_AUTHOR_EMAIL="build@localhost",
                GIT_COMMITTER_NAME="BTTV build", GIT_COMMITTER_EMAIL="build@localhost")
@@ -47,11 +49,21 @@ def build(source, workspace, output):
     apk = workspace / "dist/twitch.apk"
     if not apk.is_file() or apk.stat().st_size == 0:
         raise ValueError("Build did not export dist/twitch.apk")
+    if unsigned:
+        # Not a release artifact: only the separate signer may export verified twitch.apk.
+        from verify_release_apk import sha256
+        with apk.open('rb') as src, (output / 'unsigned.apk').open('xb') as dst:
+            shutil.copyfileobj(src, dst)
+        proof = dict(unsigned=True, sha256=sha256(output / 'unsigned.apk'),
+                     sizeBytes=(output / 'unsigned.apk').stat().st_size, inputSha256=sha256(source))
+        with (output / 'unsigned.json').open('x', encoding='utf-8') as stream:
+            stream.write(json.dumps(proof, indent=2) + '\n')
+        print('Unsigned intermediate only; not a verified release:', output / 'unsigned.apk', proof['sha256'])
+        return
     # Validate the completed file before exporting, never watch a partial APK.
     command = [os.sys.executable, str(workspace / "tools/verify_release_apk.py"),
                str(apk), "--input", str(source), "--output", str(output / "verification.json")]
-    if not os.environ.get("KS"):
-        command.append("--allow-test-key")
+    command.append("--allow-test-key")
     if os.environ.get("EXPECTED_SIGNER_SHA256"):
         command.extend(["--expected-signer", os.environ["EXPECTED_SIGNER_SHA256"]])
     subprocess.run(command, env=env, check=True)
@@ -69,5 +81,6 @@ if __name__ == "__main__":
     p.add_argument("--input", required=True, type=Path)
     p.add_argument("--workspace", required=True, type=Path)
     p.add_argument("--output", required=True, type=Path)
+    p.add_argument('--unsigned', action='store_true', help='Prepare only an unverified intermediate for the separate protected signing stage')
     args = p.parse_args()
-    build(args.input, args.workspace, args.output)
+    build(args.input, args.workspace, args.output, args.unsigned)

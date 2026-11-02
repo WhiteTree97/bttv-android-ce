@@ -12,3 +12,11 @@ old
 
 __pycache__/
 *.py[cod]
+
+# Private release inputs belong outside the repository, even when ignored.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.password
