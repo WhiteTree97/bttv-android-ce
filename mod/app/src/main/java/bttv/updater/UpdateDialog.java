@@ -66,8 +66,10 @@ public final class UpdateDialog implements UpdateController.Observer {
         String text=state.message;
         if(state.release!=null) {
             UpdateRelease r=state.release;
-            text+="\n\nBTTV Android CE "+r.name+" ("+r.code+")\nTwitch "+r.twitchVersion+" · Android API "+r.minSdk+"+\n"+
-                    r.abis+"\nDownload: "+r.size+" bytes\n\n"+r.notes;
+            text+="\n\nBTTV Android CE "+r.name+(r.code>0?" ("+r.code+")\n"+
+                    (r.metadataProvided?"Twitch "+r.twitchVersion+" · ":"")+"Android API "+r.minSdk+"+\n"+r.abis:
+                    "\nVersion code, Android SDK and ABI will be checked after download.")+
+                    "\nDownload: "+r.size+" bytes\n\n"+r.notes;
         }
         result.setText(text); // Plain TextView only, no Markdown/HTML/link execution.
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(!busy);

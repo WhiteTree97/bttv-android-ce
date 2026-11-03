@@ -43,8 +43,12 @@ find "$TMP_DIR" -maxdepth 1 -type f -name '$r8$backportedMethods$*.smali' -exec 
         self.assertEqual(read(p),expected)
         subprocess.run(['git','apply','--numstat',p],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
     def test_legacy_remains_dormant(self):
-        for n in ['UpdaterActivity','UpdaterJobService','Notifications']:
+        for n in ['UpdaterJobService','Notifications']:
             p=f'mod/app/src/main/java/bttv/updater/{n}.java';self.assertEqual(read(p),old(p))
+        legacy=read('mod/app/src/main/java/bttv/updater/UpdaterActivity.java')
+        self.assertIn('new UpdateDialog(this,this::finish)',legacy)
+        for unsafe in ['startDownload', 'getStringExtra', 'startActivity(', 'INSTALL_PACKAGE']:
+            self.assertNotIn(unsafe,legacy)
         for p in NEW:
             if '/java/' not in p:continue
             source=read(p)

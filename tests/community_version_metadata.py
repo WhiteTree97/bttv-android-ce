@@ -59,9 +59,7 @@ class CommunityVersion(unittest.TestCase):
                  'tools/build_production.py', 'tools/verify_release_apk.py',
                  'tools/release_metadata.py', 'tools/stage_production_input.py',
                  'mod/app/src/main/java/bttv/updater/UpdateSource.java',
-                 'mod/app/src/main/java/bttv/updater/UpdateRelease.java',
-                 'mod/app/src/main/java/bttv/updater/UpdateTransfer.java',
-                 'mod/app/src/main/java/bttv/updater/UpdateVerifier.java']
+                 'mod/app/src/main/java/bttv/updater/UpdateTransfer.java']  # Runtime verifier is covered by manual-upload tests.
         for path in paths:
             self.assertEqual(before_webp_remediation(path,read(path)), original(path), path)
         pin = json.loads(read(paths[0]))

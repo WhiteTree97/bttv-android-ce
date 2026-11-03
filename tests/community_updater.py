@@ -85,7 +85,8 @@ class CommunityUpdater(unittest.TestCase):
         controller=(path/'UpdateController.java').read_text()
         self.assertEqual(controller.count('UpdateTransfer.discover('),1)
         self.assertIn('controller.checkAutomatically(', (path/'AutoUpdateChecker.java').read_text())
-        for name in ['UpdateVerifier.java','AutoUpdateState.java','AutoUpdateChecker.java','UpdateSession.java']:
+        # Updated verifier/notice behavior is exercised by community_manual_uploads[_host].
+        for name in ['AutoUpdateChecker.java','UpdateSession.java']:
             baseline=subprocess.check_output(['git','show','7e40d52f76b74e0809836afd7ff8823317df436b:mod/app/src/main/java/bttv/updater/'+name],cwd=ROOT)
             if name=='AutoUpdateChecker.java':
                 baseline=baseline.replace(b'text.setText("BTTV "+release.name', b'text.setText("BTTV Android CE "+release.name')

@@ -56,11 +56,11 @@ final class AutoUpdateState {
         }
     }
     synchronized UpdateRelease notice() {
-        return store.enabled() && pending!=null && pending.code>notified?pending:null;
+        return store.enabled() && pending!=null && (pending.metadataProvided?pending.code>notified:pending.noticeKey()!=notified)?pending:null;
     }
     synchronized boolean notified(UpdateRelease release) {
         if(release==null || notice()!=release)return false;
-        notified=release.code;
+        notified=release.noticeKey();
         pending=null;
         store.notified(notified);
         return true;

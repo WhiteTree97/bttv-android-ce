@@ -48,15 +48,26 @@ public final class UpdateRelease {
     public final long code, size, assetId;
     public final int minSdk;
     public final List<String> abis;
+    public final boolean metadataProvided;
 
     private UpdateRelease(String tag, String name, String notes, String url, String assetName,
                           String sha256, String signer, String twitchVersion, long code,
-                          long size, long assetId, int minSdk, List<String> abis) {
+                          long size, long assetId, int minSdk, List<String> abis, boolean metadataProvided) {
         this.tag=tag; this.name=name; this.notes=notes; this.url=url; this.assetName=assetName;
         this.sha256=sha256; this.signer=signer; this.twitchVersion=twitchVersion;
         this.code=code; this.size=size; this.assetId=assetId; this.minSdk=minSdk;
         this.abis=Collections.unmodifiableList(new ArrayList<>(abis));
+        this.metadataProvided=metadataProvided;
     }
+
+    UpdateRelease inspected(long actualCode,int actualMin,List<String> actualAbis) {
+        return new UpdateRelease(tag,name,notes,url,assetName,sha256,signer,twitchVersion,
+                actualCode,size,assetId,actualMin,actualAbis,metadataProvided);
+    }
+
+    // Unknown versionCode is never invented. Negative asset IDs occupy a separate
+    // namespace in the existing automatic-notice preference until APK inspection.
+    long noticeKey() { return metadataProvided?code:-assetId; }
 
     public static Inspection inspect(String text, Installed installed) throws IOException {
         try {
@@ -74,10 +85,14 @@ public final class UpdateRelease {
             require(notes.length() <= MAX_NOTES, "Release notes are too large");
             JSONArray assets = json.getJSONArray("assets");
             require(assets.length() <= 64, "Too many release assets");
+            int start=notes.indexOf(MARKER);
             JSONObject apk = null;
             for (int i=0; i<assets.length(); i++) {
                 JSONObject item=assets.getJSONObject(i);
-                if (!MIME.equals(item.optString("content_type"))) continue;
+                if (!MIME.equals(item.optString("content_type"))) {
+                    if(start>=0 || !item.optString("name").toLowerCase(java.util.Locale.ROOT).endsWith(".apk"))continue;
+                    require("application/octet-stream".equals(item.optString("content_type")), "Unexpected APK media type");
+                }
                 require(apk==null, "Ambiguous APK assets");
                 require("uploaded".equals(item.optString("state")), "APK is not uploaded");
                 apk=item;
@@ -92,9 +107,20 @@ public final class UpdateRelease {
             if (!digest.isEmpty()) require(digest.matches("sha256:[0-9a-fA-F]{64}"), "Invalid asset digest");
 
             // Explicit, visible release-note metadata; no hidden test mode or arbitrary sidecar URL.
-            int start=notes.indexOf(MARKER);
-            if (start<0) return new Inspection(null,
-                    "No compatible update: the release does not provide sufficient compatibility metadata.",Outcome.UNSUPPORTED);
+            if (start<0) {
+                require(!notes.matches("(?is).*(```|~~~)[ \\t]*bttv-update.*"), "Malformed compatibility metadata");
+                if (digest.isEmpty()) return new Inspection(null,
+                        "No update offered: GitHub does not provide an APK SHA-256 digest.",Outcome.UNSUPPORTED);
+                if (compareVersions(tag.substring(1),installed.name)<=0) return new Inspection(null,
+                        "No update: the release tag is not newer than this installation.",Outcome.NOT_NEWER);
+                compatible(!Collections.disjoint(installed.abis,java.util.Arrays.asList("arm64-v8a","armeabi-v7a")),
+                        "Device ABI is unsupported");
+                UpdateRelease candidate=new UpdateRelease(tag,tag.substring(1),notes,url,assetName,
+                        hash(digest.substring(7)),hash(installed.signer),"",0,size,id,0,
+                        Collections.emptyList(),false);
+                return new Inspection(candidate,
+                        "Newer release found. APK compatibility will be verified after download.",Outcome.AVAILABLE);
+            }
             require((start==0 || notes.charAt(start-1)=='\n') && notes.indexOf(MARKER,start+1)<0,
                     "Ambiguous compatibility metadata");
             int end=notes.indexOf("\n```",start+MARKER.length());
@@ -129,7 +155,7 @@ public final class UpdateRelease {
             require(digest.isEmpty() || digest.substring(7).equalsIgnoreCase(sha), "Conflicting APK hashes");
             String display=notes.substring(0,start)+notes.substring(end+4);
             UpdateRelease candidate=new UpdateRelease(tag,name,display.trim(),url,assetName,sha,signer,twitch,
-                    code,size,id,min,abis);
+                    code,size,id,min,abis,true);
             return new Inspection(candidate,"Compatible update available.",Outcome.AVAILABLE);
         } catch (IOException e) { throw e; }
         catch (Exception e) { throw new Problem("Invalid release metadata"); }
@@ -138,9 +164,9 @@ public final class UpdateRelease {
     /** Do not trust API order, version-name ordering, or prerelease status as proof of compatibility. */
     static Inspection select(JSONArray releases, Installed installed) throws IOException {
         require(releases.length() <= UpdateSource.PER_PAGE * UpdateSource.MAX_PAGES, "Too many releases");
-        Inspection best = null, fallback = null;
+        Inspection best = null, bareBest = null, fallback = null;
         IOException invalid = null;
-        boolean conflicting = false;
+        boolean conflicting = false, bareConflicting = false;
         for (int i = 0; i < releases.length(); i++) {
             Inspection result;
             try {
@@ -153,21 +179,60 @@ public final class UpdateRelease {
             }
             if (result.candidate == null) {
                 if (fallback == null || result.outcome == Outcome.NOT_NEWER) fallback = result;
-            } else if (best == null || result.candidate.code > best.candidate.code) {
+            } else if (!result.candidate.metadataProvided) {
+                int order=bareBest==null?1:compareVersions(result.candidate.name,bareBest.candidate.name);
+                if(order>0) { bareBest=result; bareConflicting=false; }
+                else if(order==0)bareConflicting|=!sameAsset(result.candidate,bareBest.candidate);
+            } else if (best == null || result.candidate.code>best.candidate.code) {
                 best = result;
                 conflicting = false;
-            } else if (result.candidate.code == best.candidate.code) {
-                conflicting |= !(result.candidate.url.equals(best.candidate.url)
-                        && result.candidate.sha256.equals(best.candidate.sha256)
-                        && result.candidate.assetId == best.candidate.assetId
-                        && result.candidate.size == best.candidate.size);
+            } else if (result.candidate.code==best.candidate.code) {
+                conflicting|=!sameAsset(result.candidate,best.candidate);
             }
         }
-        require(!conflicting, "Conflicting releases share a versionCode");
+        // Select within each trust mode first. A pairwise mix of code ordering
+        // and tag ordering would otherwise be non-transitive and API-order-dependent.
+        if(bareBest!=null) {
+            int order=best==null?1:compareVersions(bareBest.candidate.name,best.candidate.name);
+            if(order>0) { best=bareBest; conflicting=bareConflicting; }
+            else if(order==0)conflicting|=bareConflicting || !sameAsset(best.candidate,bareBest.candidate);
+        }
+        require(!conflicting, "Conflicting releases identify the same version");
         if (best != null) return best;
         if (fallback != null) return fallback;
         if (invalid != null) throw invalid;
         return new Inspection(null, "No compatible update in the recent published releases.", Outcome.NOT_NEWER);
+    }
+
+    private static boolean sameAsset(UpdateRelease a,UpdateRelease b) {
+        return a.url.equals(b.url) && a.sha256.equals(b.sha256) && a.assetId==b.assetId && a.size==b.size;
+    }
+
+    static int compareVersions(String a,String b) throws IOException {
+        String[] left=version(a), right=version(b);
+        for(int i=0;i<3;i++) { int c=numeric(left[i],right[i]); if(c!=0)return c; }
+        if(left[3]==null || right[3]==null)return left[3]==right[3]?0:left[3]==null?1:-1;
+        String[] x=left[3].split("\\."), y=right[3].split("\\.");
+        for(int i=0;i<Math.min(x.length,y.length);i++) {
+            boolean xn=x[i].matches("[0-9]+"), yn=y[i].matches("[0-9]+");
+            int c=xn && yn?numeric(x[i],y[i]):xn!=yn?(xn?-1:1):x[i].compareTo(y[i]);
+            if(c!=0)return c;
+        }
+        return Integer.compare(x.length,y.length);
+    }
+
+    private static String[] version(String name) throws IOException {
+        compatible(name!=null && name.length()<=96 && name.matches(
+                "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?"),
+                "Cannot safely compare this version name");
+        int dash=name.indexOf('-');
+        String core=dash<0?name:name.substring(0,dash), pre=dash<0?null:name.substring(dash+1);
+        if(pre!=null)for(String part:pre.split("\\."))compatible(!part.matches("0[0-9]+"),"Invalid numeric prerelease");
+        String[] p=core.split("\\.");return new String[]{p[0],p[1],p[2],pre};
+    }
+
+    private static int numeric(String a,String b) {
+        return a.length()==b.length()?a.compareTo(b):Integer.compare(a.length(),b.length());
     }
 
     static void boundedJson(String text) throws IOException {

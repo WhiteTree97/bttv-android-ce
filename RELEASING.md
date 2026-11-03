@@ -327,65 +327,65 @@ timeouts, cancellation and rate-limit handling. It never follows an API `Link`
 header to an arbitrary URL. Keep the intended compatible release within this
 window; discovery does not promise to search the repository's entire history.
 
-Every candidate passes the same compatibility/asset metadata checks before an
-offer. The highest compatible, strictly newer **versionCode** in the window wins,
-regardless of tag ordering, publication order or prerelease status. Incompatible
-or malformed entries cannot become offers; conflicting highest-code assets fail
-closed. GitHub `prerelease: true` does not bypass package, SDK, dual-ARM, signer,
-SHA-256, size or version checks. Metadata checks never install an APK; downloading
-and installation require user confirmation. Downloads must originate at the
-configured repository's exact HTTPS release asset URL. Only the existing GitHub
-asset CDN hosts are accepted as redirects; arbitrary hosts/repositories are not.
+### Normal manual GitHub releases
 
-Before an end-to-end update test, choose the final public repository and install
-a baseline build containing this configuration. Existing upstream-only clients
-do not switch sources merely because a community release is published. Choose
-the repository before distributing that baseline: a later rename/redirect to a
-different repository is intentionally rejected by the allowlist.
+After separately authorized building, signing and device testing:
 
-The baseline and candidate must have the same package and approved signing
-identity, and the candidate must have a strictly higher approved versionCode.
-No signing-key transition is authorized or implemented here. The metadata tool
-continues to reject the known public test/debug signing identity; a successful
-test-signed local build is not evidence of production signing readiness. Do not
-disable that gate to publish a release. Signing decisions and any migration from
-existing test installations require separate approval.
+1. Increase versionName and versionCode, keeping the same package and certificate.
+2. Manually create a release in the configured CE repository. Its tag must be
+   exactly `v` + the APK versionName (for example `v0.44.3-beta`).
+3. Upload exactly one complete signed APK, then publish the release. Beta/
+   prerelease releases are supported. Normal release notes require no JSON.
 
-After separately authorized build/upload/publication, verify both manual and
-automatic discovery against the real release, download/hash/signature checks,
-user-confirmed overlay installation and data preservation. Also test draft,
-wrong-signer/package, stale-code and cancelled-download rejection. No release
-workflow or publication is performed by the metadata tool.
+For a release without a `bttv-update` block, a newer semantic-version tag and
+GitHub's valid `sha256:` asset digest are mandatory. Missing digests, drafts,
+ambiguous APKs, invalid URLs and malformed compatibility blocks are excluded.
+The APK media type may be Android's APK type or generic octet-stream with an
+`.apk` filename. Tag ordering compares numeric components and prerelease
+identifiers, not strings; unknown/nonstandard installed version names fail closed.
+The tag is only a discovery hint: versionCode, SDK and ABI remain unknown until
+inspection and are never fabricated from the version name.
 
-Before a future release, obtain explicit approval for a versionName/tag and a
-strictly increasing versionCode. The present name/tag already refers to an old
-upstream release and the current code must not be reused as a newer update. Do
-not infer approval for `0.44` or choose a new code automatically.
+Before an APK can become ready for installation, the app verifies its SHA-256,
+cryptographic signature, exact installed certificate, package, strictly greater
+real versionCode, tag/versionName equality, actual minSdk, ARM compatibility,
+standalone status and existing ZIP/native-library policies. The same checks run
+again after an explicit Install click. No download or installer is triggered by
+automatic discovery, and Android installation approval remains required.
+HTTPS origin/redirect restrictions, bounded transfers, cancellation and automatic
+check throttling are unchanged. Only configured-repository GitHub release asset
+URLs and the existing GitHub asset CDN redirect hosts are allowed.
 
-After an approved APK has been uploaded to an authorized draft release, save the
-actual release API response as `release.json`. Only then is the final asset ID
-known. The local-only metadata tool independently re-verifies the actual APK:
+When two metadata-free candidates compete, the newer tag wins. Two legacy
+metadata candidates retain versionCode ordering; mixed candidates use version
+names because the bare candidate has no trusted versionCode yet. Conflicting
+same-version assets fail closed. Only the recent discovery window above is
+searched. A published release's missing server digest cannot be replaced by a
+hash typed into its normal notes.
 
-```bash
-python3 tools/release_metadata.py --help
-```
+**Bootstrap:** installed 0.44.2-beta clients predate metadata-free discovery.
+They need one manual installation of a future build containing this change, or
+one update supplied through the existing compatibility-block mechanism. Changing
+a GitHub release alone cannot update the code already installed on a phone.
+A-to-B ADB/private installation testing does not prove full GitHub delivery.
 
-Supply `--apk`, `--input`, `--expected-signer`, `--release-json`,
-`--previous-code` and a new `--output` path. The previous code is the highest
-supported installed code, not an invented smaller value. The tool emits one visible
-`bttv-update` fenced JSON block and performs no network or publishing action.
-It refuses test signing, reused codes, mismatched tag/version, ambiguous assets,
-incorrect size/hash and off-origin asset URLs. If GitHub does not provide an asset
-digest, independently confirm that the uploaded bytes match the verified local
-APK before publication. Preserve ordinary release notes
-outside that single block; the uploader must not substitute placeholder asset IDs.
+### Existing compatibility-block releases
 
-The block includes schemaVersion, standalone, packageName, versionName,
-versionCode, releaseTag, signerSha256, minSdk, supportedAbis, twitchVersion,
-assetId, assetName, sizeBytes and sha256. The existing app verifies the metadata
-and downloaded APK independently. Run the actual updater parser tests and review
-the final release JSON before an independently authorized publication. A candidate
-artifact or source merge is not proof that a future update installs successfully.
+Existing valid `bttv-update` blocks remain supported with their stricter
+pre-download package, versionCode, signer, SDK, dual-ARM, size and hash checks.
+A broken or incompatible block never falls back to metadata-free discovery.
+`tools/release_metadata.py` remains available for maintaining those releases;
+it independently verifies the signed APK and generates a block from actual
+uploaded asset data. It does not upload or publish anything. This legacy path
+is optional for clients with the new discovery support; normal future manual
+uploads do not require a publishing script or release-description JSON.
+
+Both paths require a newer real versionCode and the same signing certificate at
+installation. No key transition, signing bypass or package migration is implied.
+Run updater JVM/Robolectric tests and then separately authorized physical-device
+manual/automatic discovery, digest failure, wrong signer/package, stale-code,
+SDK/ABI incompatibility, cancellation and explicit installation tests before
+claiming end-to-end update delivery. No release is created or changed by tests.
 
 ## CE 0.44.x-beta test releases
 

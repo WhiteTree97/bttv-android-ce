@@ -120,7 +120,7 @@ final class UpdateController {
                             if(now-last[0]>=250 || bytes==total) { last[0]=now; if(session.progress(id,bytes,total))emit(); }
                         },connections);
                     } else downloaded=selected.file;
-                    UpdateVerifier.verify(context,release,downloaded,token);
+                    release=UpdateVerifier.verify(context,release,downloaded,token);
                     token.check(); session.finish(id,UpdateSession.State.READY,"APK verified. Installation still requires your approval.",release,downloaded);
                 }
             } catch(Exception failure) {

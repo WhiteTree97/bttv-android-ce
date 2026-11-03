@@ -35,7 +35,7 @@ class AutomaticUpdaterTests(unittest.TestCase):
    if p=='build': accepted=accepted.replace('android:text=\\\"BTTV ${VERSION}\\\"', 'android:text=\\\"BTTV Android CE ${VERSION}\\\"')
    self.assertEqual(before_webp_remediation(p,read(p)),accepted,p)
  def test_legacy_remains_dormant(self):
-  for name in ['UpdaterActivity','UpdaterJobService','Notifications']:
+  for name in ['UpdaterJobService','Notifications']:  # Legacy Activity now delegates to the secure dialog.
    p=P+'updater/'+name+'.java';self.assertEqual(read(p),old(p))
   for name in ['AutoUpdateChecker','AutoUpdateState']:
    src=read(P+'updater/'+name+'.java')
@@ -49,7 +49,9 @@ class AutomaticUpdaterTests(unittest.TestCase):
   self.assertIn('if(!automatic.enabled())',c);self.assertIn('UpdateTransfer.discover(UpdateVerifier.installed(context),token,source)',c)
   self.assertIn('new ArrayBlockingQueue<>(1)',c);self.assertNotIn('startActivity(',c)
  def test_accepted_parser_and_verifier_security(self):
-  self.assertEqual(read(P+'updater/UpdateVerifier.java'),old(P+'updater/UpdateVerifier.java'))
+  verifier=read(P+'updater/UpdateVerifier.java')
+  for guard in ['signature.isVerified()', 'signer.equals(installed.signer)', 'p.getLongVersionCode()>installed.code', 'nativeAndZip(apk,']:
+   self.assertIn(guard,verifier)
   src=read(P+'updater/UpdateRelease.java')
   for required in ['UpdateSource.releasesPage(1)','code<=installed.code','boundedJson(compatibility)',
                    'signer.equals(hash(installed.signer))','PACKAGE.equals','assetUrl(url,tag,assetName)','json.get("prerelease") instanceof Boolean']:
@@ -60,7 +62,8 @@ class AutomaticUpdaterTests(unittest.TestCase):
   p=P+'updater/UpdateDialog.java'
   expected=old(p).replace('Official releases only · Manual checks only', 'Releases: \"+UpdateSource.REPOSITORY+\" · Stable and beta\\nDownloads and installation require your approval')
   for before,after in [('Installed BTTV ','Installed BTTV Android CE '),('\\n\\nBTTV ','\\n\\nBTTV Android CE '),('allow BTTV to request','allow BTTV Android CE to request')]: expected=expected.replace(before,after)
-  self.assertEqual(read(p),expected)
+  contract=runpy.run_path(str(R/'tests/community_manual_uploads.py'))['without_details']
+  self.assertEqual(contract(read(p)),contract(expected))
  def test_foreground_lifecycle_and_safe_notice(self):
   src=read(P+'updater/AutoUpdateChecker.java')
   for required in ['if(instance!=null','ActivityLifecycleCallbacks','onActivityResumed','onActivityDestroyed','WeakReference<Activity>',

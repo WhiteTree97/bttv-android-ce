@@ -106,11 +106,16 @@ class CommunityBranding(unittest.TestCase):
             for a, b in edits:
                 self.assertIn(a.encode(), expected)
                 expected = expected.replace(a.encode(), b.encode())
-            self.assertEqual((ROOT / path).read_bytes(), expected, path)
+            if path == JAVA + 'UpdateDialog.java':
+                contract = runpy.run_path(str(ROOT/'tests/community_manual_uploads.py'))['without_details']
+                self.assertEqual(contract(read(path)), contract(expected.decode()), path)
+                self.assertIn('BTTV Android CE', read(path))
+            else:
+                self.assertEqual((ROOT / path).read_bytes(), expected, path)
 
     def test_updater_and_signing_security_sources_unchanged(self):
-        paths = [JAVA + name + '.java' for name in ['UpdateSource', 'UpdateRelease', 'UpdateTransfer',
-                 'UpdateVerifier', 'UpdateController', 'UpdateSession', 'AutoUpdateState', 'Updater']]
+        paths = [JAVA + name + '.java' for name in ['UpdateSource', 'UpdateTransfer', 'UpdateSession', 'Updater']]
+        # Intentionally changed updater paths have behavioral/security contracts.
         # The signer's diagnostic wrapper is covered by community_signing's AST preservation test.
         paths += ['tools/build_production.py', 'tools/release_metadata.py',
                   'tools/verify_release_apk.py', 'tools/stage_production_input.py',

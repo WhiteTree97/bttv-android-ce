@@ -22,12 +22,12 @@ final class UpdateVerifier {
         return new UpdateRelease.Installed(p.versionName,p.getLongVersionCode(),signer,Build.VERSION.SDK_INT,Arrays.asList(Build.SUPPORTED_ABIS));
     }
 
-    static void verify(Context context,UpdateRelease release,File apk,UpdateTransfer.Cancel cancel) throws Exception {
+    static UpdateRelease verify(Context context,UpdateRelease release,File apk,UpdateTransfer.Cancel cancel) throws Exception {
         cancel.check();
         UpdateRelease.require(apk.isFile() && apk.length()==release.size,"APK size is invalid");
         UpdateRelease.require(UpdateTransfer.digest(apk,cancel).equals(release.sha256),"APK SHA-256 mismatch");
         UpdateRelease.Installed installed=installed(context);
-        UpdateRelease.require(release.code>installed.code && release.signer.equals(installed.signer),"Update identity changed");
+        UpdateRelease.require((release.code==0 || release.code>installed.code) && release.signer.equals(installed.signer),"Update identity changed");
         ApkVerifier.Result signature=new ApkVerifier.Builder(apk).setMinCheckedPlatformVersion(29).build().verify();
         cancel.check();
         UpdateRelease.require(signature.isVerified() && signature.getSignerCertificates().size()==1,"APK cryptographic signature verification failed");
@@ -35,11 +35,18 @@ final class UpdateVerifier {
         UpdateRelease.require(signer.equals(installed.signer) && signer.equals(release.signer),"APK signer does not match this installation");
         PackageInfo p=context.getPackageManager().getPackageArchiveInfo(apk.getAbsolutePath(),PackageManager.GET_SIGNING_CERTIFICATES);
         UpdateRelease.require(p!=null && UpdateRelease.PACKAGE.equals(p.packageName),"APK package is invalid");
-        UpdateRelease.require(p.getLongVersionCode()==release.code && p.getLongVersionCode()>installed.code,"APK is not the expected newer version");
+        UpdateRelease.require((release.code==0 || p.getLongVersionCode()==release.code) && p.getLongVersionCode()>installed.code
+                && p.getLongVersionCode()<=Integer.MAX_VALUE,"APK is not the expected newer version");
         UpdateRelease.require(release.name.equals(p.versionName) && release.tag.equals("v"+p.versionName),"APK versionName differs from release");
-        UpdateRelease.require(p.applicationInfo!=null && p.applicationInfo.minSdkVersion==release.minSdk && release.minSdk<=installed.sdk,"APK SDK metadata mismatch");
+        UpdateRelease.require(p.applicationInfo!=null && p.applicationInfo.minSdkVersion>0
+                && p.applicationInfo.minSdkVersion<=installed.sdk
+                && (release.minSdk==0 || p.applicationInfo.minSdkVersion==release.minSdk),"APK SDK metadata mismatch");
         UpdateRelease.require(p.splitNames==null || p.splitNames.length==0,"Split APK updates are unsupported");
-        nativeAndZip(apk,new File(context.getApplicationInfo().sourceDir),release.abis,cancel);
+        List<String> abis=release.abis.isEmpty()?Arrays.asList("arm64-v8a","armeabi-v7a"):release.abis;
+        UpdateRelease.require(!Collections.disjoint(installed.abis,abis),"Device ABI is unsupported");
+        nativeAndZip(apk,new File(context.getApplicationInfo().sourceDir),abis,cancel);
+        cancel.check();
+        return release.inspected(p.getLongVersionCode(),p.applicationInfo.minSdkVersion,abis);
     }
 
     static void nativeAndZip(File apk,File installed,List<String> abis,UpdateTransfer.Cancel cancel) throws Exception {

@@ -163,6 +163,7 @@ public class UpdaterAndroidTest {
    @Override public String getPackageName(){return UpdateRelease.PACKAGE;}
    @Override public Context getApplicationContext(){return this;}
   };original=new File(System.getProperty("updater.repo"),"dist/archive/BTTV_Stage5Q_F_Badges_Test.apk");
+  org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build.class,"SUPPORTED_ABIS",new String[]{"arm64-v8a","armeabi-v7a"});
   com.android.apksig.ApkVerifier.Result verified=new com.android.apksig.ApkVerifier.Builder(original).setMinCheckedPlatformVersion(29).build().verify();
   assertTrue("actual accepted APK signature",verified.isVerified());
   Signature signer=new Signature(verified.getSignerCertificates().get(0).getEncoded());
