@@ -119,6 +119,20 @@ public class AutoUpdateAndroidTest {
   assertEquals(UpdateSession.State.NONE,controller.session.snapshot().state);
   assertNull(Shadows.shadowOf(app).getNextStartedActivity());
  }
+ @Test public void approvedCeCIsNewerForAutomaticB()throws Exception {
+  installedCeVersion("0.44.1-beta",1208000340L);
+  body=new JSONArray().put(ceRelease("0.44.2-beta",1208000341L)).toString();
+  assertTrue(automatic()>0);done();assertEquals(UpdateRelease.Outcome.AVAILABLE,outcome);
+  assertNotNull(found);assertEquals("0.44.2-beta",found.name);assertEquals(1208000341L,found.code);
+  assertNull(Shadows.shadowOf(app).getNextStartedActivity());
+ }
+ @Test public void installedCeCOffersNeitherBOrItselfAutomatically()throws Exception {
+  installedCeVersion("0.44.2-beta",1208000341L);
+  body=new JSONArray().put(ceRelease("0.44.1-beta",1208000340L)).put(ceRelease("0.44.2-beta",1208000341L)).toString();
+  assertTrue(automatic()>0);done();assertEquals(UpdateRelease.Outcome.NOT_NEWER,outcome);assertNull(found);
+  assertEquals(UpdateSession.State.NONE,controller.session.snapshot().state);
+  assertNull(Shadows.shadowOf(app).getNextStartedActivity());
+ }
  @Test public void sharedControllerAutomaticMetadataOnly()throws Exception{assertTrue(automatic()>0);done();assertEquals(1,calls.get());assertEquals(UpdateRelease.Outcome.AVAILABLE,outcome);assertNotNull(found);assertEquals(UpdateSession.State.AVAILABLE,controller.session.snapshot().state);assertFalse(new File(app.getCacheDir(),"bttv-updater").exists());assertNull(Shadows.shadowOf(app).getNextStartedActivity());}
  @Test public void manualChecksWorkWithAutoOff()throws Exception{prefs.edit().putBoolean(AutoUpdateState.ENABLED,false).commit();controller.check();done();assertEquals(1,calls.get());assertEquals(UpdateSession.State.AVAILABLE,controller.session.snapshot().state);}
  @Test public void automaticAndManualCannotRaceTwoRequests()throws Exception{entered=new CountDownLatch(1);gate=new CountDownLatch(1);assertTrue(automatic()>0);assertTrue(entered.await(5,TimeUnit.SECONDS));assertEquals(-1,automatic());controller.check();assertEquals(1,calls.get());gate.countDown();done();}

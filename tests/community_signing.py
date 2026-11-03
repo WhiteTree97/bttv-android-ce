@@ -229,7 +229,7 @@ class InfrastructureSecurity(unittest.TestCase):
             baseline=subprocess.check_output(['git','show','86a6d791b2ed76a9994e34bcb1549ace5516ce54:'+path],cwd=ROOT)
             if path=='bttv.manifest.json':
                 # Only the explicitly approved APK B metadata differs; security code stays exact.
-                baseline=baseline.replace(b'0.43.2-beta',b'0.44.1-beta').replace(b'01208000338',b'1208000340')
+                baseline=baseline.replace(b'0.43.2-beta',b'0.44.2-beta').replace(b'01208000338',b'1208000341')
             self.assertEqual(before_webp_remediation(path,(ROOT/path).read_text()).encode(),baseline.replace(b'\r\n',b'\n'),path)
 
 

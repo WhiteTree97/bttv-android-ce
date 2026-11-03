@@ -7,9 +7,10 @@ Published CE beta releases are listed on the [releases page](https://github.com/
 which includes prereleases; do not direct CE users to the original project's downloads.
 
 This document describes maintainer gates, not permission to publish a release.
-The application remains `tv.twitch.bttvandroid.app`, version `0.44.1-beta`,
-versionCode `1208000340`, minSdk 29 and targetSdk 36. APK B version metadata is
-approved; this is not permission to sign or publish a release.
+The application remains `tv.twitch.bttvandroid.app`, version `0.44.2-beta`,
+versionCode `1208000341`, minSdk 29 and targetSdk 36. This private candidate is
+approved for unsigned preparation only; signing, installation and publication
+require separate authorization.
 
 ## Reproducible inputs and isolated builds
 
@@ -389,53 +390,51 @@ artifact or source merge is not proof that a future update installs successfully
 ## CE 0.44.x-beta test releases
 
 APK A is runtime-accepted by the user: privately signed `0.44.0-beta` /
-`1208000339` is installed and working on a Samsung Galaxy S25 Ultra. This is
-user-reported acceptance of A, not evidence that the A-to-B updater flow passed.
-APK B is approved for unsigned preparation: current source metadata is
-`0.44.1-beta` / `1208000340`.
+`1208000339` launched and worked on a Samsung Galaxy S25 Ultra.
+APK B is approved and runtime-accepted by the user: privately signed
+`0.44.1-beta` / `1208000340` installed over A with application data
+preserved. This is evidence of an overlay installation, not the full GitHub-based
+updater download/installation flow, which remains unverified.
 
-| Purpose | versionName | Matching future tag | versionCode |
+Current private candidate C is approved for unsigned preparation:
+`0.44.2-beta` / `1208000341`, including WebP 2.7 and dual-ARM 16 KB packaging.
+
+| Purpose | versionName | Existing/planned tag | versionCode |
 | --- | --- | --- | ---: |
 | A: accepted private-signed baseline | `0.44.0-beta` | `v0.44.0-beta` | `1208000339` |
-| B: approved unsigned update candidate | `0.44.1-beta` | `v0.44.1-beta` | `1208000340` |
+| B: accepted private-signed baseline | `0.44.1-beta` | `v0.44.1-beta` | `1208000340` |
+| C: private unsigned security candidate | `0.44.2-beta` | `v0.44.2-beta` | `1208000341` |
 
 Use original BTTV-style patch numbering: `0.44.0-beta` -> `0.44.1-beta` ->
-`0.44.2-beta`, continuing as `0.44.x-beta`. This convention replaces the earlier
-beta-suffix proposal. Future metadata still requires approval; no third build is
-authorized by this sequence. Use decimal versionCode strings without leading zeros
-and increase the code for EVERY distributed beta/stable build. APK B's code is
-strictly greater than A's and below signed 32-bit limits. Tags must equal `v` +
+`0.44.2-beta`, continuing as `0.44.x-beta`. Decimal versionCode strings have no
+leading zeros and increase for every distributed beta/stable build. C is newer
+than both A and B and remains below signed 32-bit limits. Tags must equal `v` +
 versionName. The updater orders by versionCode, not the text of a beta suffix.
+Existing A/B tags and source-only releases remain immutable. The C tag in the
+table is a naming plan only; this task creates no tag or GitHub release.
 
-Preserve the SAME private certificate and package when signing B. A higher code
-and matching package allow an overlay only with signing compatibility and valid
-packaging. An unsigned artifact cannot prove that B has the same certificate,
-and no A-to-B installation success is claimed before the actual signed update.
-The existing verifier and updater certificate checks must remain strict.
+After separately authorizing private signing and device testing:
 
-After separately approving private signing and publication:
+1. Preserve the existing A/B signed APKs, proofs, archives and application data.
+   Use the new validated unsigned C artifact and a fresh signing output path.
+2. Sign C with the SAME private certificate and package as B using SDK35
+   `zipalign -P 16 4`, SDK30 apksigner and the complete independent verifier.
+   Verify the actual signed C certificate, SHA-256, package, version and greater
+   code. Never substitute test signing or relax certificate/URL checks.
+3. On a supported ARM device running B, test the separately authorized signed C
+   overlay and data retention, static/animated emotes, chat, playback and settings.
+   Check 4 KB ARM64, ARMv7 and 16 KB ARM64 behavior before compatibility claims.
+4. Test actual updater discovery/download/installation only after separate release
+   approval and proprietary distribution clearance. B should recognize C as newer;
+   C must offer neither A/B nor itself. Draft releases, corrupt downloads,
+   wrong-certificate/package assets and untrusted URLs must remain rejected.
 
-1. Keep the accepted A installation, signed APK, verification proof and unsigned
-   input unchanged. Build B to a new unsigned output and validate its metadata,
-   ZIP, DEX and complete dual-ARM native contents.
-2. Sign B with the SAME approved private identity as A using the existing isolated
-   alignment/signing/verifier stage. Check the signed B fingerprint equals A's;
-   verify B's actual hash, package, name and greater code. Never substitute test
-   signing or relax certificate pinning to force an update.
-3. Attach the actual uploaded signed asset's validated metadata block to a published
-   GitHub prerelease in `WhiteTree97/bttv-android-ce`, only after release approval.
-   `v0.44.1-beta` is a future tag; this preparation creates no tag or release.
-4. On the phone with A installed, test manual AND automatic discovery of B,
-   download/hash/package/certificate verification, explicit installation consent,
-   overlay installation and preservation of login/settings/data. Then verify B
-   offers neither A nor itself. Draft releases, wrong-signature/package assets,
-   corrupt downloads and untrusted URLs must continue to be rejected.
-
-The automatic check's persisted throttle/backoff remains in force; an immediate
-manual check is the appropriate first discovery test. Do not clear app data or
-weaken throttling/security checks to make an automatic prompt appear.
-APK B unsigned preparation does not authorize signing, installation, publication
-or tagging. The two-version updater test is still pending physical-device results.
+The automatic check's persisted throttle/backoff remains in force; use a manual
+check for the first discovery test. Do not clear application data or weaken
+security checks. Unsigned C preparation does not authorize signing, installation,
+tagging, publication or public redistribution. Final uploaded-asset IDs/hashes
+and the release metadata block can only be prepared after separately authorized
+signing/upload and complete verification; unsigned.json is not release metadata.
 
 ## Notices and remaining release gates
 

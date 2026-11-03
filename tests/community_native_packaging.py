@@ -113,7 +113,7 @@ class FinalVerifier(unittest.TestCase):
     def sdk(self, *args):
         args = list(map(str, args)); self.calls.append(args)
         if args[1:3] == ['dump', 'badging']:
-            return ("package: name='tv.twitch.bttvandroid.app' versionCode='1208000340' versionName='0.44.1-beta'\n"
+            return ("package: name='tv.twitch.bttvandroid.app' versionCode='1208000341' versionName='0.44.2-beta'\n"
                     "sdkVersion:'29'\ntargetSdkVersion:'36'\n")
         if args[1:3] == ['dump', 'xmltree']:
             return 'android:extractNativeLibs=0x0\n' + '\n'.join('android:authorities="provider%d"'%i for i in range(9))

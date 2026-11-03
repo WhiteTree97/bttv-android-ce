@@ -22,12 +22,12 @@ def original(path):
 class CommunityVersion(unittest.TestCase):
     def test_approved_metadata_and_decimal_code(self):
         config = json.loads(read('bttv.manifest.json'))
-        self.assertEqual(config, {'version': '0.44.1-beta', 'versionCode': '1208000340'})
+        self.assertEqual(config, {'version': '0.44.2-beta', 'versionCode': '1208000341'})
         self.assertRegex(config['versionCode'], r'^[1-9][0-9]*$')
-        old = json.loads(original('bttv.manifest.json'))
-        self.assertEqual(old, {'version': '0.44.0-beta', 'versionCode': '1208000339'})
+        old = json.loads(subprocess.check_output(['git', 'show', '3048e3c09b4ec2ffcdb7ba5d230e4808965f988e:bttv.manifest.json'], cwd=ROOT))
+        self.assertEqual(old, {'version': '0.44.1-beta', 'versionCode': '1208000340'})
         self.assertLess(int(old['versionCode']), int(config['versionCode']))
-        self.assertLess(int(config['versionCode']), 1208000341)
+        self.assertLess(int(config['versionCode']), 1208000342)
         self.assertLessEqual(int(config['versionCode']), 2147483647)
 
     def test_existing_manifest_injection_and_legacy_footer_rule(self):

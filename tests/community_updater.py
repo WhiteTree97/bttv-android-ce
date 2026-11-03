@@ -16,12 +16,12 @@ import release_metadata as metadata
 
 class CommunityUpdater(unittest.TestCase):
     def setUp(self):
-        self.proof = dict(packageName='tv.twitch.bttvandroid.app', versionName='0.44.1-beta',
-            versionCode=1208000340, testSigningIdentity=False, standalone=True, signerSha256='A'*64,
+        self.proof = dict(packageName='tv.twitch.bttvandroid.app', versionName='0.44.2-beta',
+            versionCode=1208000341, testSigningIdentity=False, standalone=True, signerSha256='A'*64,
             minSdk=29, supportedAbis=['arm64-v8a','armeabi-v7a'], twitchVersion='31.2.0', sizeBytes=100, sha256='B'*64)
-        self.release = dict(tag_name='v0.44.1-beta', draft=False, prerelease=True, assets=[dict(
+        self.release = dict(tag_name='v0.44.2-beta', draft=False, prerelease=True, assets=[dict(
             id=12, name='bttv.apk', state='uploaded', content_type='application/vnd.android.package-archive',
-            size=100, browser_download_url='https://github.com/'+metadata.repository()+'/releases/download/v0.44.1-beta/bttv.apk', digest='sha256:'+'b'*64)])
+            size=100, browser_download_url='https://github.com/'+metadata.repository()+'/releases/download/v0.44.2-beta/bttv.apk', digest='sha256:'+'b'*64)])
 
     def test_single_repository_configuration(self):
         source=metadata.SOURCE.read_text()
@@ -41,7 +41,7 @@ class CommunityUpdater(unittest.TestCase):
             with patch.object(metadata,'SOURCE',path):
                 self.assertEqual(metadata.repository(),'ExampleOwner/community')
                 self.release['assets'][0]['browser_download_url']=self.release['assets'][0]['browser_download_url'].replace(configured,'ExampleOwner/community')
-                self.assertIn('```bttv-update',metadata.block(self.proof,self.release,1208000339))
+                self.assertIn('```bttv-update',metadata.block(self.proof,self.release,1208000340))
 
     def test_malformed_or_ambiguous_configuration_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -56,21 +56,21 @@ class CommunityUpdater(unittest.TestCase):
         for draft in [False,True]:
             for prerelease in [False,True]:
                 self.release.update(draft=draft,prerelease=prerelease)
-                value=json.loads(metadata.block(self.proof,self.release,1208000339).split('\n',1)[1].rsplit('\n```',1)[0])
-                self.assertEqual(value['versionCode'],1208000340)
-                self.assertEqual(value['versionName'],'0.44.1-beta')
-                self.assertEqual(value['releaseTag'],'v0.44.1-beta')
+                value=json.loads(metadata.block(self.proof,self.release,1208000340).split('\n',1)[1].rsplit('\n```',1)[0])
+                self.assertEqual(value['versionCode'],1208000341)
+                self.assertEqual(value['versionName'],'0.44.2-beta')
+                self.assertEqual(value['releaseTag'],'v0.44.2-beta')
                 self.assertEqual(value['assetId'],12)
 
     def test_status_flags_must_be_actual_booleans(self):
         for key in ['draft','prerelease']:
             for value in [None,'true',1,0]:
                 release=copy.deepcopy(self.release);release[key]=value
-                with self.subTest(key=key,value=value),self.assertRaises(ValueError):metadata.block(self.proof,release,1208000339)
+                with self.subTest(key=key,value=value),self.assertRaises(ValueError):metadata.block(self.proof,release,1208000340)
 
     def test_beta_keeps_identity_and_version_checks(self):
-        for change in [dict(testSigningIdentity=True),dict(packageName='tv.twitch.android.app'),dict(versionCode=1208000339)]:
-            with self.subTest(change=change),self.assertRaises(ValueError):metadata.block(dict(self.proof,**change),self.release,1208000339)
+        for change in [dict(testSigningIdentity=True),dict(packageName='tv.twitch.android.app'),dict(versionCode=1208000340)]:
+            with self.subTest(change=change),self.assertRaises(ValueError):metadata.block(dict(self.proof,**change),self.release,1208000340)
 
     def test_wrong_download_origins_and_encodings_rejected(self):
         good=self.release['assets'][0]['browser_download_url']
@@ -78,7 +78,7 @@ class CommunityUpdater(unittest.TestCase):
                     good.replace('github.com/','github.com.evil.test/'),good.replace('github.com/','user@github.com/'),
                     good.replace('https:','http:'),good.replace('/bttv.apk','/%62ttv.apk')]:
             release=copy.deepcopy(self.release);release['assets'][0]['browser_download_url']=url
-            with self.subTest(url=url),self.assertRaises(ValueError):metadata.block(self.proof,release,1208000339)
+            with self.subTest(url=url),self.assertRaises(ValueError):metadata.block(self.proof,release,1208000340)
 
     def test_controller_is_shared_and_verifier_is_unchanged(self):
         path=ROOT/'mod/app/src/main/java/bttv/updater'
