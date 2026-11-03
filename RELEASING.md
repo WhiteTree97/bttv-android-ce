@@ -7,8 +7,9 @@ Published CE beta releases are listed on the [releases page](https://github.com/
 which includes prereleases; do not direct CE users to the original project's downloads.
 
 This document describes maintainer gates, not permission to publish a release.
-The application remains `tv.twitch.bttvandroid.app`, version `0.43.2-beta`,
-versionCode `1208000338`, minSdk 29 and targetSdk 36. No version bump is implied.
+The application remains `tv.twitch.bttvandroid.app`, version `0.44.0-beta`,
+versionCode `1208000339`, minSdk 29 and targetSdk 36. APK A version metadata is
+approved; this is not permission to sign or publish a release.
 
 ## Reproducible inputs and isolated builds
 
@@ -340,24 +341,25 @@ and downloaded APK independently. Run the actual updater parser tests and review
 the final release JSON before an independently authorized publication. A candidate
 artifact or source merge is not proof that a future update installs successfully.
 
-## Proposed first two CE test versions — not applied
+## APK A and proposed APK B test versions
 
-Current source metadata remains versionName `0.43.2-beta` and decimal versionCode
-`1208000338` (stored as the string `01208000338`). This preparation does not
-change either value or create tags/releases.
+APK A is approved: current source metadata is versionName `0.44.0-beta` and
+decimal versionCode `1208000339`. The preceding checkpoint used `0.43.2-beta` /
+`1208000338` (stored as `01208000338`). APK B remains a proposal. No tag or
+release has been created; `v0.44.0-beta` is a future tag only.
 
-| Purpose | Proposed versionName | Matching proposed tag | Proposed versionCode |
+| Purpose | versionName | Matching future tag | versionCode |
 | --- | --- | --- | ---: |
-| First private-signed baseline | `0.44.0-beta` | `v0.44.0-beta` | `1208000339` |
-| Same-signer update candidate | `0.44.0-beta.2` | `v0.44.0-beta.2` | `1208000340` |
+| A: approved metadata; unsigned preparation only | `0.44.0-beta` | `v0.44.0-beta` | `1208000339` |
+| B: proposed same-signer update candidate | `0.44.0-beta.2` | `v0.44.0-beta.2` | `1208000340` |
 
-Use decimal strings without leading zeros for future codes. These proposals
-exceed the current code and remain below the signed 32-bit limit. Confirm that
+Use decimal strings without leading zeros for future codes. APK A exceeds the previous
+code; proposed APK B exceeds A. Both remain below the signed 32-bit limit. Confirm that
 no higher code has already been distributed before approving them. The updater
 orders by versionCode, not the text of the beta suffix. Every subsequent stable
 or beta build must continue increasing the code; tags must equal `v` + versionName.
 
-After separately approving the key, versions and permitted publication:
+After separately approving the private key, APK B metadata and permitted signing/publication:
 
 1. Build/sign/verify the first baseline, manually install it under the approved
    migration plan and confirm the CE label, login, playback/chat and settings.
@@ -369,8 +371,9 @@ After separately approving the key, versions and permitted publication:
    preservation of login/settings/data. Rechecking B must not offer A or B again.
    Also confirm drafts, wrong-signer/package and corrupt downloads remain rejected.
 
-This is a proposed acceptance plan, not evidence of a successful signed update.
-Do not treat either proposed version as approved/published until separately authorized.
+This remains an acceptance plan, not evidence of a successful signed update.
+APK A unsigned preparation does not authorize signing, publishing, installation or
+creation of its future tag. APK B metadata also requires separate approval.
 
 ## Notices and remaining release gates
 

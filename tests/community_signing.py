@@ -219,6 +219,9 @@ class InfrastructureSecurity(unittest.TestCase):
     def test_release_verifier_and_metadata_contract_unchanged(self):
         for path in ['tools/verify_release_apk.py','tools/release_metadata.py','bttv.manifest.json','mod/app/src/main/java/bttv/updater/UpdateVerifier.java']:
             baseline=subprocess.check_output(['git','show','86a6d791b2ed76a9994e34bcb1549ace5516ce54:'+path],cwd=ROOT)
+            if path=='bttv.manifest.json':
+                # Only the explicitly approved APK A metadata differs; security code stays exact.
+                baseline=baseline.replace(b'0.43.2-beta',b'0.44.0-beta').replace(b'01208000338',b'1208000339')
             self.assertEqual((ROOT/path).read_bytes().replace(b'\r\n',b'\n'),baseline.replace(b'\r\n',b'\n'),path)
 
 

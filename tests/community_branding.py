@@ -111,23 +111,24 @@ class CommunityBranding(unittest.TestCase):
                  'UpdateVerifier', 'UpdateController', 'UpdateSession', 'AutoUpdateState', 'Updater']]
         paths += ['tools/sign_release.py', 'tools/build_production.py', 'tools/release_metadata.py',
                   'tools/verify_release_apk.py', 'tools/stage_production_input.py',
-                  'patches/AndroidManifest.xml.patch', 'bttv.manifest.json', 'mod/app/build.gradle']
+                  'patches/AndroidManifest.xml.patch', 'mod/app/build.gradle']
         paths += subprocess.check_output(['git', 'ls-files', '.github/workflows'], cwd=ROOT).decode().splitlines()
         for path in paths:
             with self.subTest(path=path):
                 self.assertEqual((ROOT / path).read_bytes().replace(b'\r\n', b'\n'), before(path).replace(b'\r\n', b'\n'))
         self.assertIn('REPOSITORY = "' + REPO + '"', read(JAVA + 'UpdateSource.java'))
 
-    def test_version_proposal_does_not_apply_metadata(self):
+    def test_approved_a_metadata_and_planned_b(self):
         metadata = json.loads(read('bttv.manifest.json'))
-        self.assertEqual(metadata['version'], '0.43.2-beta')
-        self.assertEqual(metadata['versionCode'], '01208000338')
+        self.assertEqual(metadata['version'], '0.44.0-beta')
+        self.assertEqual(metadata['versionCode'], '1208000339')
         doc = read('RELEASING.md')
-        codes = [int(metadata['versionCode']), 1208000339, 1208000340]
+        codes = [1208000338, int(metadata['versionCode']), 1208000340]
         self.assertTrue(all(a < b <= 2147483647 for a, b in zip(codes, codes[1:])))
         for version, code in [('0.44.0-beta', codes[1]), ('0.44.0-beta.2', codes[2])]:
             self.assertIn('`' + version + '` | `v' + version + '` | `' + str(code) + '`', doc)
-        self.assertIn('not applied', doc)
+        self.assertIn('APK A is approved', doc)
+        self.assertIn('APK B remains a proposal', doc)
         self.assertIn('SAME private certificate and package', doc)
 
 
