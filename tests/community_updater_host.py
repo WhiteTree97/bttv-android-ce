@@ -47,6 +47,43 @@ public class CommunityReleaseTest {
   JSONArray a=new JSONArray();for(JSONObject r:releases)a.put(r);
   return UpdateRelease.select(a,UpdaterHostTest.installed());
  }
+ JSONObject ceMetadata(String name,long code,byte[] bytes,String signer)throws Exception {
+  return UpdaterHostTest.compatibility(bytes).put("versionName",name).put("releaseTag","v"+name)
+   .put("versionCode",code).put("signerSha256",signer);
+ }
+ @Test public void approvedCeAtoBDiscoveryAndIdentityChecks()throws Exception {
+  byte[] bytes={1,2,3};String signer="C".repeat(64); // Synthetic public-certificate fixture, never a real key.
+  UpdateRelease.Installed first=new UpdateRelease.Installed("0.44.0-beta",1208000339L,signer,30,UpdaterHostTest.ABIS);
+  UpdateRelease.Installed updated=new UpdateRelease.Installed("0.44.1-beta",1208000340L,signer,30,UpdaterHostTest.ABIS);
+  JSONObject a=UpdaterHostTest.release(ceMetadata("0.44.0-beta",1208000339L,bytes,signer),bytes).put("prerelease",true);
+  JSONObject metadata=ceMetadata("0.44.1-beta",1208000340L,bytes,signer);
+  JSONObject b=UpdaterHostTest.release(metadata,bytes).put("prerelease",true);
+  String listing=new JSONArray().put(a).put(b).toString();
+  UpdateRelease found=UpdateTransfer.discover(first,new UpdateTransfer.Cancel(),u->connection(u,listing)).candidate;
+  assertNotNull(found);assertEquals("0.44.1-beta",found.name);assertEquals("v0.44.1-beta",found.tag);assertEquals(1208000340L,found.code);
+  assertNull(UpdateTransfer.discover(updated,new UpdateTransfer.Cancel(),u->connection(u,listing)).candidate);
+  assertNull(UpdateRelease.select(new JSONArray().put(a),updated).candidate);
+  assertNull(UpdateRelease.select(new JSONArray().put(b),updated).candidate);
+  b.put("draft",true);assertNull(UpdateRelease.select(new JSONArray().put(a).put(b),first).candidate);
+  JSONObject wrongSigner=new JSONObject(metadata.toString()).put("signerSha256","D".repeat(64));
+  UpdaterHostTest.rejects(()->UpdateRelease.inspect(UpdaterHostTest.release(wrongSigner,bytes).put("prerelease",true).toString(),first));
+  JSONObject wrongPackage=new JSONObject(metadata.toString()).put("packageName","tv.twitch.android.app");
+  UpdaterHostTest.rejects(()->UpdateRelease.inspect(UpdaterHostTest.release(wrongPackage,bytes).put("prerelease",true).toString(),first));
+ }
+ @Test public void approvedCeBDownloadStillRequiresExactSha256()throws Exception {
+  byte[] bytes={1,2,3};String signer="C".repeat(64);
+  UpdateRelease.Installed first=new UpdateRelease.Installed("0.44.0-beta",1208000339L,signer,30,UpdaterHostTest.ABIS);
+  JSONObject b=UpdaterHostTest.release(ceMetadata("0.44.1-beta",1208000340L,bytes,signer),bytes).put("prerelease",true);
+  UpdateRelease candidate=UpdateRelease.inspect(b.toString(),first).candidate;
+  File dir=java.nio.file.Files.createTempDirectory("ce-b-download-fixture-").toFile();
+  try {
+   File file=UpdateTransfer.download(candidate,dir,new UpdateTransfer.Cancel(),(n,t)->{},u->new UpdaterHostTest.Connection(u,bytes));
+   assertArrayEquals(bytes,java.nio.file.Files.readAllBytes(file.toPath()));assertTrue(file.delete());
+   byte[] corrupt={3,2,1};
+   UpdaterHostTest.rejects(()->UpdateTransfer.download(candidate,dir,new UpdateTransfer.Cancel(),(n,t)->{},u->new UpdaterHostTest.Connection(u,corrupt)));
+   assertEquals(0,dir.list().length);
+  } finally {for(File file:dir.listFiles())file.delete();assertTrue(dir.delete());}
+ }
  @Test public void highestCompatibleCodeNotApiOrder()throws Exception {
   assertEquals(1208000341L,select(release(1208000339L,false),release(1208000341L,true),release(1208000340L,false)).candidate.code);
   assertEquals(1208000341L,select(release(1208000341L,false),release(1208000339L,true)).candidate.code);

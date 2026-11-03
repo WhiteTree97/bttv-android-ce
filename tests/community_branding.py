@@ -119,17 +119,19 @@ class CommunityBranding(unittest.TestCase):
                 self.assertEqual((ROOT / path).read_bytes().replace(b'\r\n', b'\n'), before(path).replace(b'\r\n', b'\n'))
         self.assertIn('REPOSITORY = "' + REPO + '"', read(JAVA + 'UpdateSource.java'))
 
-    def test_approved_a_metadata_and_planned_b(self):
+    def test_approved_b_metadata_and_release_sequence(self):
         metadata = json.loads(read('bttv.manifest.json'))
-        self.assertEqual(metadata['version'], '0.44.0-beta')
-        self.assertEqual(metadata['versionCode'], '1208000339')
+        self.assertEqual(metadata['version'], '0.44.1-beta')
+        self.assertEqual(metadata['versionCode'], '1208000340')
         doc = read('RELEASING.md')
-        codes = [1208000338, int(metadata['versionCode']), 1208000340]
+        codes = [1208000339, int(metadata['versionCode']), 1208000341]
         self.assertTrue(all(a < b <= 2147483647 for a, b in zip(codes, codes[1:])))
-        for version, code in [('0.44.0-beta', codes[1]), ('0.44.0-beta.2', codes[2])]:
+        for version, code in [('0.44.0-beta', codes[0]), ('0.44.1-beta', codes[1])]:
             self.assertIn('`' + version + '` | `v' + version + '` | `' + str(code) + '`', doc)
-        self.assertIn('APK A is approved', doc)
-        self.assertIn('APK B remains a proposal', doc)
+        self.assertIn('APK A is runtime-accepted', doc)
+        self.assertIn('APK B is approved', doc)
+        self.assertIn('0.44.2-beta', doc)
+        self.assertNotIn('0.44.0-beta.2', doc)
         self.assertIn('SAME private certificate and package', doc)
 
 

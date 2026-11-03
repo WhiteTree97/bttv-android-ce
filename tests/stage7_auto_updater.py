@@ -29,7 +29,7 @@ class AutomaticUpdaterTests(unittest.TestCase):
   for p in ['patches/AndroidManifest.xml.patch','mod/app/build.gradle','bttv.manifest.json','build','buildsource','disassemble']:
    # Accepted port infrastructure predates this community-updater change.
    accepted=subprocess.check_output(['git','show','e473bf2892f4498ca8472cd5751ed7aa9343ad99:'+p],cwd=R).decode().replace('\r\n','\n')
-   if p=='bttv.manifest.json': accepted=accepted.replace('0.43.2-beta','0.44.0-beta').replace('01208000338','1208000339')
+   if p=='bttv.manifest.json': accepted=accepted.replace('0.43.2-beta','0.44.1-beta').replace('01208000338','1208000340')
    if p=='build': accepted=accepted.replace('android:text=\\\"BTTV ${VERSION}\\\"', 'android:text=\\\"BTTV Android CE ${VERSION}\\\"')
    self.assertEqual(read(p),accepted,p)
  def test_legacy_remains_dormant(self):

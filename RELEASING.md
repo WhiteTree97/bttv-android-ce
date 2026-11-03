@@ -7,8 +7,8 @@ Published CE beta releases are listed on the [releases page](https://github.com/
 which includes prereleases; do not direct CE users to the original project's downloads.
 
 This document describes maintainer gates, not permission to publish a release.
-The application remains `tv.twitch.bttvandroid.app`, version `0.44.0-beta`,
-versionCode `1208000339`, minSdk 29 and targetSdk 36. APK A version metadata is
+The application remains `tv.twitch.bttvandroid.app`, version `0.44.1-beta`,
+versionCode `1208000340`, minSdk 29 and targetSdk 36. APK B version metadata is
 approved; this is not permission to sign or publish a release.
 
 ## Reproducible inputs and isolated builds
@@ -373,39 +373,56 @@ and downloaded APK independently. Run the actual updater parser tests and review
 the final release JSON before an independently authorized publication. A candidate
 artifact or source merge is not proof that a future update installs successfully.
 
-## APK A and proposed APK B test versions
+## CE 0.44.x-beta test releases
 
-APK A is approved: current source metadata is versionName `0.44.0-beta` and
-decimal versionCode `1208000339`. The preceding checkpoint used `0.43.2-beta` /
-`1208000338` (stored as `01208000338`). APK B remains a proposal. No tag or
-release has been created; `v0.44.0-beta` is a future tag only.
+APK A is runtime-accepted by the user: privately signed `0.44.0-beta` /
+`1208000339` is installed and working on a Samsung Galaxy S25 Ultra. This is
+user-reported acceptance of A, not evidence that the A-to-B updater flow passed.
+APK B is approved for unsigned preparation: current source metadata is
+`0.44.1-beta` / `1208000340`.
 
 | Purpose | versionName | Matching future tag | versionCode |
 | --- | --- | --- | ---: |
-| A: approved metadata; unsigned preparation only | `0.44.0-beta` | `v0.44.0-beta` | `1208000339` |
-| B: proposed same-signer update candidate | `0.44.0-beta.2` | `v0.44.0-beta.2` | `1208000340` |
+| A: accepted private-signed baseline | `0.44.0-beta` | `v0.44.0-beta` | `1208000339` |
+| B: approved unsigned update candidate | `0.44.1-beta` | `v0.44.1-beta` | `1208000340` |
 
-Use decimal strings without leading zeros for future codes. APK A exceeds the previous
-code; proposed APK B exceeds A. Both remain below the signed 32-bit limit. Confirm that
-no higher code has already been distributed before approving them. The updater
-orders by versionCode, not the text of the beta suffix. Every subsequent stable
-or beta build must continue increasing the code; tags must equal `v` + versionName.
+Use original BTTV-style patch numbering: `0.44.0-beta` -> `0.44.1-beta` ->
+`0.44.2-beta`, continuing as `0.44.x-beta`. This convention replaces the earlier
+beta-suffix proposal. Future metadata still requires approval; no third build is
+authorized by this sequence. Use decimal versionCode strings without leading zeros
+and increase the code for EVERY distributed beta/stable build. APK B's code is
+strictly greater than A's and below signed 32-bit limits. Tags must equal `v` +
+versionName. The updater orders by versionCode, not the text of a beta suffix.
 
-After separately approving the private key, APK B metadata and permitted signing/publication:
+Preserve the SAME private certificate and package when signing B. A higher code
+and matching package allow an overlay only with signing compatibility and valid
+packaging. An unsigned artifact cannot prove that B has the same certificate,
+and no A-to-B installation success is claimed before the actual signed update.
+The existing verifier and updater certificate checks must remain strict.
 
-1. Build/sign/verify the first baseline, manually install it under the approved
-   migration plan and confirm the CE label, login, playback/chat and settings.
-2. Produce the second build using the SAME private certificate and package.
-   Attach the actual uploaded asset's validated metadata block to a published
-   GitHub prerelease. Never publish unsigned intermediates or substitute test signing.
-3. With baseline A installed, exercise both manual and automatic discovery of B,
-   download verification, permission/user-confirmed overlay installation, and
-   preservation of login/settings/data. Rechecking B must not offer A or B again.
-   Also confirm drafts, wrong-signer/package and corrupt downloads remain rejected.
+After separately approving private signing and publication:
 
-This remains an acceptance plan, not evidence of a successful signed update.
-APK A unsigned preparation does not authorize signing, publishing, installation or
-creation of its future tag. APK B metadata also requires separate approval.
+1. Keep the accepted A installation, signed APK, verification proof and unsigned
+   input unchanged. Build B to a new unsigned output and validate its metadata,
+   ZIP, DEX and complete dual-ARM native contents.
+2. Sign B with the SAME approved private identity as A using the existing isolated
+   alignment/signing/verifier stage. Check the signed B fingerprint equals A's;
+   verify B's actual hash, package, name and greater code. Never substitute test
+   signing or relax certificate pinning to force an update.
+3. Attach the actual uploaded signed asset's validated metadata block to a published
+   GitHub prerelease in `WhiteTree97/bttv-android-ce`, only after release approval.
+   `v0.44.1-beta` is a future tag; this preparation creates no tag or release.
+4. On the phone with A installed, test manual AND automatic discovery of B,
+   download/hash/package/certificate verification, explicit installation consent,
+   overlay installation and preservation of login/settings/data. Then verify B
+   offers neither A nor itself. Draft releases, wrong-signature/package assets,
+   corrupt downloads and untrusted URLs must continue to be rejected.
+
+The automatic check's persisted throttle/backoff remains in force; an immediate
+manual check is the appropriate first discovery test. Do not clear app data or
+weaken throttling/security checks to make an automatic prompt appear.
+APK B unsigned preparation does not authorize signing, installation, publication
+or tagging. The two-version updater test is still pending physical-device results.
 
 ## Notices and remaining release gates
 

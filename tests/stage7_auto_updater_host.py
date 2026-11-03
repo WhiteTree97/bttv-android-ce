@@ -95,6 +95,30 @@ public class AutoUpdateAndroidTest {
  void done()throws Exception{ThreadPoolExecutor worker=field(controller,"worker");worker.submit(()->{}).get(5,TimeUnit.SECONDS);Shadows.shadowOf(Looper.getMainLooper()).idle();}
  long automatic(){return controller.checkAutomatically(new UpdateController.AutomaticCheck(){public boolean enabled(){return allow;}public void finished(long id,UpdateRelease.Outcome o,UpdateRelease r,long at){outcome=o;found=r;retry=at;}});}
  @After public void cleanup()throws Exception{if(gate!=null)gate.countDown();if(controller!=null){ThreadPoolExecutor worker=field(controller,"worker");worker.shutdownNow();}singleton("instance",null,UpdateController.class);singleton("instance",null,AutoUpdateChecker.class);}
+ void installedCeVersion(String name,long code)throws Exception {
+  PackageInfo p=app.getPackageManager().getPackageInfo(UpdateRelease.PACKAGE,PackageManager.GET_SIGNING_CERTIFICATES);
+  p.versionName=name;p.setLongVersionCode(code);
+  ((ShadowPackageManager)Shadow.extract(app.getPackageManager())).installPackage(p);
+ }
+ JSONObject ceRelease(String name,long code)throws Exception {
+  byte[] bytes={1};JSONObject c=UpdaterHostTest.compatibility(bytes).put("versionName",name).put("releaseTag","v"+name)
+   .put("versionCode",code).put("signerSha256",UpdateVerifier.installed(app).signer);
+  return UpdaterHostTest.release(c,bytes).put("prerelease",true);
+ }
+ @Test public void approvedCeBIsNewerForAutomaticA()throws Exception {
+  installedCeVersion("0.44.0-beta",1208000339L);
+  body=new JSONArray().put(ceRelease("0.44.1-beta",1208000340L)).toString();
+  assertTrue(automatic()>0);done();assertEquals(UpdateRelease.Outcome.AVAILABLE,outcome);
+  assertNotNull(found);assertEquals("0.44.1-beta",found.name);assertEquals(1208000340L,found.code);
+  assertNull(Shadows.shadowOf(app).getNextStartedActivity());
+ }
+ @Test public void installedCeBOffersNeitherAOrItselfAutomatically()throws Exception {
+  installedCeVersion("0.44.1-beta",1208000340L);
+  body=new JSONArray().put(ceRelease("0.44.0-beta",1208000339L)).put(ceRelease("0.44.1-beta",1208000340L)).toString();
+  assertTrue(automatic()>0);done();assertEquals(UpdateRelease.Outcome.NOT_NEWER,outcome);assertNull(found);
+  assertEquals(UpdateSession.State.NONE,controller.session.snapshot().state);
+  assertNull(Shadows.shadowOf(app).getNextStartedActivity());
+ }
  @Test public void sharedControllerAutomaticMetadataOnly()throws Exception{assertTrue(automatic()>0);done();assertEquals(1,calls.get());assertEquals(UpdateRelease.Outcome.AVAILABLE,outcome);assertNotNull(found);assertEquals(UpdateSession.State.AVAILABLE,controller.session.snapshot().state);assertFalse(new File(app.getCacheDir(),"bttv-updater").exists());assertNull(Shadows.shadowOf(app).getNextStartedActivity());}
  @Test public void manualChecksWorkWithAutoOff()throws Exception{prefs.edit().putBoolean(AutoUpdateState.ENABLED,false).commit();controller.check();done();assertEquals(1,calls.get());assertEquals(UpdateSession.State.AVAILABLE,controller.session.snapshot().state);}
  @Test public void automaticAndManualCannotRaceTwoRequests()throws Exception{entered=new CountDownLatch(1);gate=new CountDownLatch(1);assertTrue(automatic()>0);assertTrue(entered.await(5,TimeUnit.SECONDS));assertEquals(-1,automatic());controller.check();assertEquals(1,calls.get());gate.countDown();done();}

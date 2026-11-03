@@ -1,4 +1,4 @@
-"""APK A versions, final injection boundary and unchanged release trust inputs."""
+"""Approved CE release versions, final injection boundary and unchanged release trust inputs."""
 import json
 from pathlib import Path
 import subprocess
@@ -6,7 +6,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = '631ecb684e13f0eb5b51bd38e514160ceb8a6352'
+BASE = '62cdb4941ad387beed96f902843c4dc87a864731'
 
 
 def read(path):
@@ -17,14 +17,15 @@ def original(path):
     return subprocess.check_output(['git', 'show', BASE + ':' + path], cwd=ROOT).decode().replace('\r\n', '\n')
 
 
-class ApkAVersion(unittest.TestCase):
+class CommunityVersion(unittest.TestCase):
     def test_approved_metadata_and_decimal_code(self):
         config = json.loads(read('bttv.manifest.json'))
-        self.assertEqual(config, {'version': '0.44.0-beta', 'versionCode': '1208000339'})
+        self.assertEqual(config, {'version': '0.44.1-beta', 'versionCode': '1208000340'})
         self.assertRegex(config['versionCode'], r'^[1-9][0-9]*$')
         old = json.loads(original('bttv.manifest.json'))
+        self.assertEqual(old, {'version': '0.44.0-beta', 'versionCode': '1208000339'})
         self.assertLess(int(old['versionCode']), int(config['versionCode']))
-        self.assertLess(int(config['versionCode']), 1208000340)
+        self.assertLess(int(config['versionCode']), 1208000341)
         self.assertLessEqual(int(config['versionCode']), 2147483647)
 
     def test_existing_manifest_injection_and_legacy_footer_rule(self):
