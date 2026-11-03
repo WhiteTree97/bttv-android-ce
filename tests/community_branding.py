@@ -109,7 +109,8 @@ class CommunityBranding(unittest.TestCase):
     def test_updater_and_signing_security_sources_unchanged(self):
         paths = [JAVA + name + '.java' for name in ['UpdateSource', 'UpdateRelease', 'UpdateTransfer',
                  'UpdateVerifier', 'UpdateController', 'UpdateSession', 'AutoUpdateState', 'Updater']]
-        paths += ['tools/sign_release.py', 'tools/build_production.py', 'tools/release_metadata.py',
+        # The signer's diagnostic wrapper is covered by community_signing's AST preservation test.
+        paths += ['tools/build_production.py', 'tools/release_metadata.py',
                   'tools/verify_release_apk.py', 'tools/stage_production_input.py',
                   'patches/AndroidManifest.xml.patch', 'mod/app/build.gradle']
         paths += subprocess.check_output(['git', 'ls-files', '.github/workflows'], cwd=ROOT).decode().splitlines()

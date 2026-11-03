@@ -51,8 +51,9 @@ class ApkAVersion(unittest.TestCase):
         self.assertNotIn('BuildConfig.VERSION', verifier)
 
     def test_twitch_inputs_package_and_security_unchanged(self):
+        # Signing diagnostics have a separate AST-level unchanged-policy contract.
         paths = ['tools/twitch-31.2.0-inputs.json', 'patches/AndroidManifest.xml.patch',
-                 'tools/build_production.py', 'tools/sign_release.py', 'tools/verify_release_apk.py',
+                 'tools/build_production.py', 'tools/verify_release_apk.py',
                  'tools/release_metadata.py', 'tools/stage_production_input.py',
                  'mod/app/src/main/java/bttv/updater/UpdateSource.java',
                  'mod/app/src/main/java/bttv/updater/UpdateRelease.java',
@@ -63,7 +64,7 @@ class ApkAVersion(unittest.TestCase):
         pin = json.loads(read(paths[0]))
         self.assertEqual(pin['versionName'], '31.2.0')
         self.assertIn('tv.twitch.bttvandroid.app', read(paths[1]))
-        self.assertIn('WhiteTree97/bttv-android-ce', read(paths[7]))
+        self.assertIn('WhiteTree97/bttv-android-ce', read('mod/app/src/main/java/bttv/updater/UpdateSource.java'))
 
     def test_existing_ce_label_and_resources_unchanged(self):
         path = 'mod/app/src/main/res/values/strings.xml'

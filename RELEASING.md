@@ -215,6 +215,38 @@ Only a successful verifier/export authorizes calling that output a signed
 candidate. Publication, archive promotion, version approval and device acceptance
 remain separate. Never substitute the unsigned intermediate for a release APK.
 
+### Privacy-safe signing diagnostics
+
+The protected signer reports failures as one fixed line, for example:
+
+```text
+Protected signing/verification failed; stage=verification category=CERTIFICATE_MISMATCH; no candidate is approved.
+```
+
+| Stage | Meaning and example categories |
+| --- | --- |
+| `configuration` | Before SDK work: `OUTPUT_NOT_NEW`, `INPUT_MISSING`, `INVALID_SIGNER_PIN`, `INVALID_PRIVATE_INPUT`, `INVALID_PASSWORD_SOURCE`, `INVALID_PASSWORD_FORMAT`, `INVALID_ARGUMENTS`. |
+| `alignment` | Preparing the aligned copy: `TOOL_NOT_FOUND`, `ACCESS_DENIED`, `SDK_NONZERO_EXIT`. |
+| `signing` | Invoking SDK signing: `TOOL_NOT_FOUND`, `ACCESS_DENIED`, `SDK_NONZERO_EXIT`. |
+| `verification` | The unchanged full verifier rejected input or output: `INPUT_VERIFICATION_FAILED`, `PACKAGE_VERSION_MISMATCH`, `SIGNATURE_CHECK_FAILED`, `CERTIFICATE_MISMATCH`, `ALIGNMENT_CHECK_FAILED`, `ZIP_INVALID`, `DEX_INVALID`, `NATIVE_INVALID`, or another allowlisted category. |
+| `export` | Writing/promoting verified files: `EXPORT_HASH_MISMATCH`, `ACCESS_DENIED`, `FILE_NOT_FOUND`, `IO_ERROR`. |
+
+Unrecognized validation errors use `VALIDATION_FAILED`; unexpected errors use
+`INTERNAL_ERROR`. Errors outside a known operation report `stage=unknown`.
+Categories never make an artifact approved or relax any verification gate.
+
+`--output` must name a new child directory, not an already-created directory
+or the existing bind-mount root. The Docker example mounts a parent at `/output`
+and asks the signer to create `/output/build`. A pre-existing empty output
+directory is still rejected before alignment.
+
+Diagnostics never echo exceptions, raw SDK output, command arguments, private
+paths or environment values. Do not enable shell tracing, print signing
+environment variables or share raw private-input/SDK logs to investigate a
+failure. `SDK_NONZERO_EXIT` deliberately does not guess whether a password,
+alias, key or other SDK condition caused the rejection. The fixed key alias,
+certificate pin, password rules and protected signing flow remain unchanged.
+
 ## CI boundaries and maintainer provisioning
 
 PR checks and the Docker-validation workflow receive no signing inputs and cannot
