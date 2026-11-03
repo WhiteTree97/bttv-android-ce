@@ -2,6 +2,7 @@
 from pathlib import Path
 import json
 import re
+import runpy
 import subprocess
 import unittest
 import xml.etree.ElementTree as ET
@@ -11,6 +12,7 @@ BASE = 'e473bf2892f4498ca8472cd5751ed7aa9343ad99'
 REPO = 'WhiteTree97/bttv-android-ce'
 JAVA = 'mod/app/src/main/java/bttv/updater/'
 STRINGS = 'mod/app/src/main/res/values/strings.xml'
+before_webp_remediation = runpy.run_path(str(ROOT/'tests/community_webp.py'))['before_webp_remediation']
 
 
 def read(path):
@@ -46,7 +48,7 @@ class CommunityBranding(unittest.TestCase):
                 if path.endswith(('.png', '.jpg', '.webp', '.svg')):
                     self.assertEqual((ROOT / path).read_bytes(), before(path))
                     continue
-                self.assertEqual((ROOT / path).read_bytes().replace(b'\r\n', b'\n'), before(path).replace(b'\r\n', b'\n'))
+                self.assertEqual(before_webp_remediation(path, read(path)).encode(), before(path).replace(b'\r\n', b'\n'))
         old = before('README.md').decode()
         current = read('README.md')
         self.assertEqual(old[old.index('## Contributors ✨'):], current[current.index('## Contributors ✨'):])
@@ -87,7 +89,7 @@ class CommunityBranding(unittest.TestCase):
             self.assertEqual(path.read_bytes().replace(b'\r\n', b'\n'), before(rel).replace(b'\r\n', b'\n'), rel)
         self.assertIn('android:label="@string/app_name"', read('patches/AndroidManifest.xml.patch'))
         for path in ['buildsource', 'mod/app/src/main/java/bttv/Res.java']:
-            self.assertEqual((ROOT / path).read_bytes().replace(b'\r\n', b'\n'), before(path).replace(b'\r\n', b'\n'))
+            self.assertEqual(before_webp_remediation(path, read(path)).encode(), before(path).replace(b'\r\n', b'\n'))
 
     def test_display_changes_only_in_executable_sources(self):
         changes = {
@@ -117,6 +119,7 @@ class CommunityBranding(unittest.TestCase):
         for path in paths:
             with self.subTest(path=path):
                 current=(ROOT / path).read_bytes().replace(b'\r\n',b'\n')
+                current=before_webp_remediation(path,current.decode()).encode()
                 if path=='.github/workflows/docker.yml':
                     # Behavioral/failure tests are in stage9_infrastructure. Freeze everything
                     # outside the narrowly scoped, pinned APKEditor version guard.

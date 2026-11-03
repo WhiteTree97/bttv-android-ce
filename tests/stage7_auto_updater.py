@@ -1,10 +1,12 @@
 """Stage 7 source boundaries and preserved manual/Anon integration; no network."""
 from pathlib import Path
+import runpy
 import subprocess
 import unittest
 import xml.etree.ElementTree as ET
 
 R=Path(__file__).resolve().parents[1]
+before_webp_remediation=runpy.run_path(str(R/'tests/community_webp.py'))['before_webp_remediation']
 BASE='d6786c09de56c59c8041ef5d4e0defbe9461b125'
 def read(p):return (R/p).read_text(encoding='utf-8')
 def old(p):return subprocess.check_output(['git','show',BASE+':'+p],cwd=R).decode().replace('\r\n','\n')
@@ -31,7 +33,7 @@ class AutomaticUpdaterTests(unittest.TestCase):
    accepted=subprocess.check_output(['git','show','e473bf2892f4498ca8472cd5751ed7aa9343ad99:'+p],cwd=R).decode().replace('\r\n','\n')
    if p=='bttv.manifest.json': accepted=accepted.replace('0.43.2-beta','0.44.1-beta').replace('01208000338','1208000340')
    if p=='build': accepted=accepted.replace('android:text=\\\"BTTV ${VERSION}\\\"', 'android:text=\\\"BTTV Android CE ${VERSION}\\\"')
-   self.assertEqual(read(p),accepted,p)
+   self.assertEqual(before_webp_remediation(p,read(p)),accepted,p)
  def test_legacy_remains_dormant(self):
   for name in ['UpdaterActivity','UpdaterJobService','Notifications']:
    p=P+'updater/'+name+'.java';self.assertEqual(read(p),old(p))

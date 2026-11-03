@@ -1,0 +1,596 @@
+"""Offline WebP dependency security, binary-parser and compatibility regressions."""
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('webp_inspection', ROOT/'tools/verify_webp_decoder.py')
+webp = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(webp)
+
+
+class WebpPolicy(unittest.TestCase):
+    def test_glide_is_strictly_retained_and_decoder_transitive_glide_excluded(self):
+        source = (ROOT/'mod/app/build.gradle').read_text()
+        self.assertIn('def GLIDE_VERSION = "4.12.0"', source)
+        self.assertIn("api('com.github.zjupure:webpdecoder:2.7.4.16.0')", source)
+        self.assertIn("exclude group: 'com.github.bumptech.glide', module: 'glide'", source)
+        self.assertIn('api("com.github.bumptech.glide:glide:${GLIDE_VERSION}")', source)
+        self.assertIn('version { strictly GLIDE_VERSION }', source)
+        self.assertNotIn('webpdecoder:2.0.', source)
+
+    def test_pinned_official_inputs_and_both_arm_architectures(self):
+        policy = json.loads(webp.MANIFEST.read_text())
+        self.assertEqual(policy['coordinate'], 'com.github.zjupure:webpdecoder:2.7.4.16.0')
+        self.assertEqual(policy['libwebpVersion'], '1.3.2')
+        self.assertEqual(policy['glideVersion'], '4.12.0')
+        self.assertEqual(policy['packagedAbis'], ['arm64-v8a', 'armeabi-v7a'])
+        self.assertEqual(policy['upstreamRevision'], '56d3f2523d546bd069600b8ee2435a0e0e2c3c07')
+        for item in policy['artifacts'].values():
+            self.assertTrue(item['url'].startswith('https://repo.maven.apache.org/maven2/'))
+            self.assertRegex(item['sha256'], r'^[0-9A-F]{64}$')
+        for abi, bits, machine in [('arm64-v8a', 64, 183), ('armeabi-v7a', 32, 40)]:
+            info = policy['native']['jni/'+abi+'/libglide-webp.so']
+            self.assertEqual((info['bits'], info['machine'], info['version']), (bits, machine, '1.3.2'))
+            self.assertTrue(info['loads'])
+            if bits == 64:
+                self.assertTrue(all(p['align'] >= 16384 for p in info['loads']))
+
+    def test_notices_retain_licenses_and_record_correct_native_version(self):
+        notice = (ROOT/'mod/app/src/main/res/raw/bttv_third_party_notices.txt').read_text()
+        doc = (ROOT/'THIRD_PARTY_NOTICES.md').read_text()
+        for text in [notice, doc]:
+            self.assertIn('2.7.4.16.0', text)
+            self.assertIn('1.3.2', text)
+            self.assertIn('56d3f2523d546bd069600b8ee2435a0e0e2c3c07', text)
+            self.assertNotIn('snapshot identifies libwebp 1.1.0', text)
+        self.assertIn('libwebp COPYING', notice)
+        self.assertIn('libwebp additional patent grant', notice)
+        self.assertIn('Copyright (c) 2010, Google Inc. All rights reserved.', notice)
+        self.assertIn('Copyright 2017-2018 zjupure', notice)
+
+    def test_existing_animation_adapter_still_starts_stops_and_rebinds(self):
+        source = (ROOT/'mod/app/src/main/java/bttv/glide/Webp.java').read_text()
+        for operation in ['registerComponents(context, glide, registry)', 'webpDrawable.setCallback(cb)',
+                          'webpDrawable.start()', 'webpDrawable.stop()']:
+            self.assertIn(operation, source)
+        provenance = (ROOT/'mod/app/libs/NOTICE-webpdecoder.md').read_text()
+        self.assertIn('Physical-device animation testing remains required', provenance)
+        self.assertIn('not a vendor-published', provenance)
+
+    def test_remediation_inverse_preserves_all_other_source_and_notices(self):
+        for path in _WEBP_EDITS:
+            old = subprocess.check_output(['git', 'show', '8a5ddeea8a00a2800b294594699dfa3ed16e3e09:' + path], cwd=ROOT).decode()
+            self.assertEqual(before_webp_remediation(path, (ROOT/path).read_text()), old)
+
+
+class BinaryInspection(unittest.TestCase):
+    def test_corrupt_elf_and_class_rejected(self):
+        for data in [b'', b'\x7fELF', bytes(64), b'\x7fELF'+bytes(60)]:
+            with self.subTest(data=data[:4]), self.assertRaises(ValueError):
+                webp.elf(data)
+        with self.assertRaises(ValueError):
+            webp.class_file(b'bad class')
+
+    def test_hash_mismatch_is_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            p = Path(temp)/'fixture'
+            p.write_bytes(b'fixture')
+            webp.checked_hash(p, hashlib.sha256(b'fixture').hexdigest().upper())
+            with self.assertRaises(ValueError):
+                webp.checked_hash(p, '0'*64)
+
+    def test_linkage_checks_descriptors_and_inherited_methods(self):
+        def cls(superclass=None, methods=(), refs=()):
+            return dict(super=superclass, interfaces=[], fields=set(), methods=set(methods), refs=set(refs))
+        parent = 'com/bumptech/glide/Base'
+        child = 'com/bumptech/glide/Child'
+        decoder = {'Wrapper': cls(refs=[(10, child, 'start', '()V')])}
+        glide = {child: cls(parent), parent: cls(methods=[('start', '()V')])}
+        self.assertEqual(webp.linkage(decoder, glide), (1, []))
+        glide[parent]['methods'] = {('start', '(I)V')}
+        self.assertEqual(webp.linkage(decoder, glide)[1], [(child, 'start', '()V')])
+
+    def test_constructors_are_not_inherited(self):
+        parent = 'com/bumptech/glide/Base'
+        child = 'com/bumptech/glide/Child'
+        decoder = {'Wrapper': dict(super=None, interfaces=[], fields=set(), methods=set(),
+                                  refs={(10, child, '<init>', '()V')})}
+        glide = {parent: dict(super=None, interfaces=[], fields=set(), methods={('<init>', '()V')}),
+                 child: dict(super=parent, interfaces=[], fields=set(), methods=set())}
+        self.assertEqual(webp.linkage(decoder, glide)[1], [(child, '<init>', '()V')])
+
+
+# Exact inverse of the reviewed dependency/notice changes, for older freeze tests.
+# Any unrelated change still fails their original byte/text comparison.
+_WEBP_EDITS = {'mod/app/build.gradle': [('    def GLIDE_VERSION = "4.12.0"\n'
+                           "    implementation 'androidx.appcompat:appcompat:1.2.0'\n"
+                           "    implementation 'com.google.android.material:material:1.3.0'\n"
+                           '    api "com.github.zjupure:webpdecoder:2.0.${GLIDE_VERSION}"\n'
+                           '    api "com.caverock:androidsvg-aar:1.4"\n'
+                           "    implementation project(path: ':twitch')\n"
+                           "    testImplementation 'junit:junit:4.+'\n",
+                           '    def GLIDE_VERSION = "4.12.0"\n'
+                           "    implementation 'androidx.appcompat:appcompat:1.2.0'\n"
+                           "    implementation 'com.google.android.material:material:1.3.0'\n"
+                           "    // Verified against Glide 4.12.0; do not transitively upgrade Twitch's Glide.\n"
+                           '    // Artifact/native hashes and compatibility evidence: '
+                           'libs/NOTICE-webpdecoder.md.\n'
+                           "    api('com.github.zjupure:webpdecoder:2.7.4.16.0') {\n"
+                           "        exclude group: 'com.github.bumptech.glide', module: 'glide'\n"
+                           '    }\n'
+                           '    api("com.github.bumptech.glide:glide:${GLIDE_VERSION}") {\n'
+                           '        version { strictly GLIDE_VERSION }\n'
+                           '    }\n'
+                           '    api "com.caverock:androidsvg-aar:1.4"\n'
+                           "    implementation project(path: ':twitch')\n"
+                           "    testImplementation 'junit:junit:4.+'\n")],
+ 'mod/consumer/build.gradle': [('        targetSdkVersion 30\n'
+                                '        versionCode 1\n'
+                                '        versionName "1.0"\n'
+                                '\n'
+                                '        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"\n'
+                                '    }\n',
+                                '        targetSdkVersion 30\n'
+                                '        versionCode 1\n'
+                                '        versionName "1.0"\n'
+                                '\n'
+                                '        // Match the pinned Twitch input; decoder-only x86 is not an app ABI.\n'
+                                "        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }\n"
+                                '\n'
+                                '        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"\n'
+                                '    }\n')],
+ 'THIRD_PARTY_NOTICES.md': [('| JetBrains annotations | 13.0 | Apache-2.0; [artifact '
+                             'metadata](https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.pom) '
+                             '|\n'
+                             '| Public Suffix List data in OkHttp | Snapshot specified below | MPL-2.0; notice '
+                             'and preferred source below |\n'
+                             '| Glide, gifdecoder, disklrucache and annotations | 4.12.0 | Composite BSD-style, '
+                             'MIT and Apache-2.0 terms; [complete upstream '
+                             'license](https://github.com/bumptech/glide/blob/v4.12.0/LICENSE), reproduced in the '
+                             'bundled notice |\n'
+                             '| GlideWebpDecoder | 2.0.4.12.0 | Apache-2.0 wrapper, Copyright 2017-2018 zjupure; '
+                             '[pinned '
+                             'source](https://github.com/zjupure/GlideWebpDecoder/tree/989e6a4ab7db933c7685d40ee1047fcddeb4c4e5) '
+                             '|\n'
+                             '| libwebp in GlideWebpDecoder | Provider snapshot identifies 1.1.0 | Google '
+                             'BSD-style terms and additional patent grant; '
+                             '[COPYING](https://github.com/webmproject/libwebp/blob/v1.1.0/COPYING), '
+                             '[PATENTS](https://github.com/webmproject/libwebp/blob/v1.1.0/PATENTS) reproduced in '
+                             'the bundled notice |\n'
+                             '| AndroidSVG | 1.4 | Apache-2.0, Copyright 2013-2018 Cave Rock Software Ltd; '
+                             '[pinned '
+                             'license](https://github.com/BigBadaboom/androidsvg/blob/9490d751d91033051efc6a4a9835ceff6082e9ff/LICENSE) '
+                             '|\n'
+                             '| AndroidX libraries and Material Components | Resolved consumer inventory below | '
+                             'Apache-2.0; Android Open Source Project / respective contributors; [AndroidX '
+                             'license](https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt), '
+                             '[Material '
+                             'license](https://github.com/material-components/material-components-android/blob/1.4.0/LICENSE) '
+                             '|\n'
+                             '\n',
+                             '| JetBrains annotations | 13.0 | Apache-2.0; [artifact '
+                             'metadata](https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.pom) '
+                             '|\n'
+                             '| Public Suffix List data in OkHttp | Snapshot specified below | MPL-2.0; notice '
+                             'and preferred source below |\n'
+                             '| Glide, gifdecoder, disklrucache and annotations | 4.12.0 | Composite BSD-style, '
+                             'MIT and Apache-2.0 terms; [complete upstream '
+                             'license](https://github.com/bumptech/glide/blob/v4.12.0/LICENSE), reproduced in the '
+                             'bundled notice |\n'
+                             '| GlideWebpDecoder | 2.7.4.16.0, with Glide retained at 4.12.0 | Apache-2.0 '
+                             'wrapper, Copyright 2017-2018 zjupure; [pinned '
+                             'source](https://github.com/zjupure/GlideWebpDecoder/tree/56d3f2523d546bd069600b8ee2435a0e0e2c3c07), '
+                             '[artifact/compatibility provenance](mod/app/libs/NOTICE-webpdecoder.md) |\n'
+                             '| libwebp in GlideWebpDecoder | 1.3.2, confirmed in both ARM binaries | Google '
+                             'BSD-style terms and additional patent grant; '
+                             '[COPYING](https://github.com/webmproject/libwebp/blob/v1.3.2/COPYING), '
+                             '[PATENTS](https://github.com/webmproject/libwebp/blob/v1.3.2/PATENTS) reproduced in '
+                             'the bundled notice |\n'
+                             '| AndroidSVG | 1.4 | Apache-2.0, Copyright 2013-2018 Cave Rock Software Ltd; '
+                             '[pinned '
+                             'license](https://github.com/BigBadaboom/androidsvg/blob/9490d751d91033051efc6a4a9835ceff6082e9ff/LICENSE) '
+                             '|\n'
+                             '| AndroidX libraries and Material Components | Resolved consumer inventory below | '
+                             'Apache-2.0; Android Open Source Project / respective contributors; [AndroidX '
+                             'license](https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt), '
+                             '[Material '
+                             'license](https://github.com/material-components/material-components-android/blob/1.4.0/LICENSE) '
+                             '|\n'
+                             '\n')],
+ 'mod/app/src/main/res/raw/bttv_third_party_notices.txt': [('  JetBrains annotations 13.0.\n'
+                                                            '  https://github.com/JetBrains/kotlin/tree/v1.9.10\n'
+                                                            '  '
+                                                            'https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.pom\n'
+                                                            '- GlideWebpDecoder 2.0.4.12.0 wrapper: Copyright '
+                                                            '2017-2018 zjupure.\n'
+                                                            '  '
+                                                            'https://github.com/zjupure/GlideWebpDecoder/tree/989e6a4ab7db933c7685d40ee1047fcddeb4c4e5\n'
+                                                            '- AndroidSVG 1.4: Copyright 2013-2018 Cave Rock '
+                                                            'Software Ltd.\n'
+                                                            '  '
+                                                            'https://github.com/BigBadaboom/androidsvg/tree/9490d751d91033051efc6a4a9835ceff6082e9ff\n'
+                                                            '- AndroidX libraries and Material Components: '
+                                                            'Android Open Source Project and\n',
+                                                            '  JetBrains annotations 13.0.\n'
+                                                            '  https://github.com/JetBrains/kotlin/tree/v1.9.10\n'
+                                                            '  '
+                                                            'https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.pom\n'
+                                                            '- GlideWebpDecoder 2.7.4.16.0 wrapper: Copyright '
+                                                            '2017-2018 zjupure.\n'
+                                                            '  '
+                                                            'https://github.com/zjupure/GlideWebpDecoder/tree/56d3f2523d546bd069600b8ee2435a0e0e2c3c07\n'
+                                                            "  Glide remains 4.12.0; the decoder's transitive "
+                                                            'Glide 4.16.0 is excluded.\n'
+                                                            '- AndroidSVG 1.4: Copyright 2013-2018 Cave Rock '
+                                                            'Software Ltd.\n'
+                                                            '  '
+                                                            'https://github.com/BigBadaboom/androidsvg/tree/9490d751d91033051efc6a4a9835ceff6082e9ff\n'
+                                                            '- AndroidX libraries and Material Components: '
+                                                            'Android Open Source Project and\n'),
+                                                           ('\n'
+                                                            'Glide 4.12.0 and its gifdecoder/disklrucache '
+                                                            'components carry the composite license\n'
+                                                            'below. The decoder includes separate libwebp '
+                                                            'BSD-style terms and a patent grant.\n'
+                                                            'The provider source snapshot identifies libwebp '
+                                                            '1.1.0; exact native compilation\n'
+                                                            'reproducibility is not asserted. No local decoder '
+                                                            'library-source fork is made.\n'
+                                                            '\n'
+                                                            'Public Suffix List data: MPL 2.0, separate from the '
+                                                            'Apache-licensed HTTP code.\n'
+                                                            'License: https://www.mozilla.org/en-US/MPL/2.0/\n',
+                                                            '\n'
+                                                            'Glide 4.12.0 and its gifdecoder/disklrucache '
+                                                            'components carry the composite license\n'
+                                                            'below. The decoder includes separate libwebp '
+                                                            'BSD-style terms and a patent grant.\n'
+                                                            'Both ARM decoder binaries report libwebp 1.3.2. '
+                                                            'Artifact hashes and compatibility\n'
+                                                            'evidence are recorded in '
+                                                            'mod/app/libs/NOTICE-webpdecoder.md and\n'
+                                                            'tools/webpdecoder-inputs.json. Exact native '
+                                                            'compilation reproducibility is not\n'
+                                                            'asserted. No local decoder library-source fork is '
+                                                            'made.\n'
+                                                            '\n'
+                                                            'Public Suffix List data: MPL 2.0, separate from the '
+                                                            'Apache-licensed HTTP code.\n'
+                                                            'License: https://www.mozilla.org/en-US/MPL/2.0/\n')],
+ 'tools/sign_release.py': [('import zipfile\n'
+                            '\n'
+                            'from verify_release_apk import ROOT, TEST_SIGNER, sha256, verify\n'
+                            '\n'
+                            '\n'
+                            '# Only these literal tokens may reach failure output. Never interpolate an\n',
+                            'import zipfile\n'
+                            '\n'
+                            'from verify_release_apk import ROOT, TEST_SIGNER, sha256, verify\n'
+                            'from apk_native_policy import zipalign_tool\n'
+                            '\n'
+                            '\n'
+                            '# Only these literal tokens may reach failure output. Never interpolate an\n'),
+                           ("                'BTTV injection missing from classes7.dex': 'DEX_INVALID',\n"
+                            "                'Missing packaged license resource': 'NOTICES_MISSING',\n"
+                            "                'Native architecture mismatch': 'NATIVE_INVALID',\n"
+                            "                'Incomplete dual-ARM inventory': 'NATIVE_INVALID',\n"
+                            "                'Original Twitch native library changed': 'NATIVE_INVALID',\n"
+                            '            }\n',
+                            "                'BTTV injection missing from classes7.dex': 'DEX_INVALID',\n"
+                            "                'Missing packaged license resource': 'NOTICES_MISSING',\n"
+                            "                'Native architecture mismatch': 'NATIVE_INVALID',\n"
+                            "                'Unexpected native ABI': 'NATIVE_INVALID',\n"
+                            "                'Native ELF load alignment failure': 'NATIVE_INVALID',\n"
+                            "                'Unexpected WebP decoder': 'NATIVE_INVALID',\n"
+                            "                'Incomplete dual-ARM inventory': 'NATIVE_INVALID',\n"
+                            "                'Original Twitch native library changed': 'NATIVE_INVALID',\n"
+                            '            }\n'),
+                           ('            work = Path(directory)\n'
+                            "            aligned, signed = work / 'aligned.apk', work / 'signed.apk'\n"
+                            "            stage = 'alignment'\n"
+                            "            sdk_run([tools / 'zipalign', '-p', '4', apk, aligned], env)\n"
+                            "            stage = 'signing'\n"
+                            "            sdk_run([tools / 'apksigner', 'sign', '--ks', key, '--ks-key-alias', "
+                            "'bttv-android',\n"
+                            "                     '--ks-pass', password_source,\n",
+                            '            work = Path(directory)\n'
+                            "            aligned, signed = work / 'aligned.apk', work / 'signed.apk'\n"
+                            "            stage = 'alignment'\n"
+                            "            sdk_run([zipalign_tool(tools.parent.parent), '-P', '16', '4', apk, "
+                            'aligned], env)\n'
+                            "            stage = 'signing'\n"
+                            "            sdk_run([tools / 'apksigner', 'sign', '--ks', key, '--ks-key-alias', "
+                            "'bttv-android',\n"
+                            "                     '--ks-pass', password_source,\n")],
+ 'tools/verify_release_apk.py': [('import subprocess\n'
+                                  'import zipfile\n'
+                                  'import zlib\n'
+                                  '\n'
+                                  'TEST_SIGNER = '
+                                  '"1E08A903AEF9C3A721510B64EC764D01D3D094EB954161B62544EA8F187B5953"\n'
+                                  'ROOT = Path(__file__).resolve().parents[1]\n',
+                                  'import subprocess\n'
+                                  'import zipfile\n'
+                                  'import zlib\n'
+                                  'from apk_native_policy import (NATIVE_ZIP_ALIGNMENT, SUPPORTED_ABIS,\n'
+                                  '                               ZIPALIGN_BUILD_TOOLS, check_native_entry, '
+                                  'zipalign_tool)\n'
+                                  '\n'
+                                  'TEST_SIGNER = '
+                                  '"1E08A903AEF9C3A721510B64EC764D01D3D094EB954161B62544EA8F187B5953"\n'
+                                  'ROOT = Path(__file__).resolve().parents[1]\n'),
+                                 ('        raise ValueError("Unexpected signing certificate")\n'
+                                  '    if signer == TEST_SIGNER and not allow_test:\n'
+                                  '        raise ValueError("Public bundled debug key is not a production signing '
+                                  'identity")\n'
+                                  '    alignment = run(tools / "zipalign", "-c", "-p", "4", apk)\n'
+                                  '    dex_counts, native_counts = {}, {}\n'
+                                  '    with zipfile.ZipFile(apk) as z, apk.open("rb") as raw:\n'
+                                  '        names = z.namelist()\n'
+                                  '        if len(names) != len(set(names)) or z.testzip():\n',
+                                  '        raise ValueError("Unexpected signing certificate")\n'
+                                  '    if signer == TEST_SIGNER and not allow_test:\n'
+                                  '        raise ValueError("Public bundled debug key is not a production signing '
+                                  'identity")\n'
+                                  '    alignment = run(zipalign_tool(sdk), "-c", "-P", "16", "4", apk)\n'
+                                  '    dex_counts, native_counts, native_elf_alignment = {}, {}, {}\n'
+                                  '    decoder_pins = json.loads((ROOT / '
+                                  "'tools/webpdecoder-inputs.json').read_text())['native']\n"
+                                  '    with zipfile.ZipFile(apk) as z, apk.open("rb") as raw:\n'
+                                  '        names = z.namelist()\n'
+                                  '        if len(names) != len(set(names)) or z.testzip():\n'),
+                                 ('            if not z.read("res/raw/" + notice):\n'
+                                  '                raise ValueError("Missing packaged license resource")\n'
+                                  '        for entry in z.infolist():\n'
+                                  '            if not entry.filename.startswith("lib/") or not '
+                                  'entry.filename.endswith(".so"):\n'
+                                  '                continue\n'
+                                  "            abi = entry.filename.split('/')[1]\n"
+                                  '            native_counts[abi] = native_counts.get(abi, 0) + 1\n'
+                                  '            raw.seek(entry.header_offset)\n'
+                                  '            header = raw.read(30)\n'
+                                  "            filename_size, extra_size = struct.unpack_from('<HH', header, 26)\n"
+                                  '            offset = entry.header_offset + 30 + filename_size + extra_size\n'
+                                  '            if entry.compress_type != zipfile.ZIP_STORED or offset % 4096:\n'
+                                  '                raise ValueError("Native compression/alignment failure: " + '
+                                  'entry.filename)\n'
+                                  '            data = z.read(entry)\n'
+                                  "            if data[:4] != b'\\x7fELF' or len(data) < 64:\n"
+                                  '                raise ValueError("Invalid native ELF: " + entry.filename)\n'
+                                  "            if abi in ['arm64-v8a', 'armeabi-v7a']:\n"
+                                  "                elf = (data[4], data[5], struct.unpack_from('<H', data, "
+                                  '18)[0])\n'
+                                  "                if elf != ((2, 1, 183) if abi == 'arm64-v8a' else (1, 1, "
+                                  '40)):\n'
+                                  '                    raise ValueError("Native architecture mismatch")\n'
+                                  "        for abi in ['arm64-v8a', 'armeabi-v7a']:\n"
+                                  "            if native_counts.get(abi) != 39 or 'lib/' + abi + "
+                                  "'/libglide-webp.so' not in names:\n"
+                                  '                raise ValueError("Incomplete dual-ARM inventory")\n',
+                                  '            if not z.read("res/raw/" + notice):\n'
+                                  '                raise ValueError("Missing packaged license resource")\n'
+                                  '        for entry in z.infolist():\n'
+                                  "            if entry.filename.startswith('lib/') and entry.filename != "
+                                  "'lib/':\n"
+                                  "                if entry.filename.split('/')[1] not in SUPPORTED_ABIS:\n"
+                                  "                    raise ValueError('Unexpected native ABI')\n"
+                                  '            if not entry.filename.startswith("lib/") or not '
+                                  'entry.filename.endswith(".so"):\n'
+                                  '                continue\n'
+                                  '            abi, elf_align = check_native_entry(entry, raw, z.read(entry))\n'
+                                  "            if entry.filename == 'lib/' + abi + '/libglide-webp.so':\n"
+                                  "                expected_decoder = decoder_pins['jni/' + abi + "
+                                  "'/libglide-webp.so']['sha256']\n"
+                                  '                if hashlib.sha256(z.read(entry)).hexdigest().upper() != '
+                                  'expected_decoder:\n'
+                                  "                    raise ValueError('Unexpected WebP decoder')\n"
+                                  '            native_counts[abi] = native_counts.get(abi, 0) + 1\n'
+                                  '            native_elf_alignment[abi] = min(native_elf_alignment.get(abi, '
+                                  'elf_align), elf_align)\n'
+                                  "        for abi in ['arm64-v8a', 'armeabi-v7a']:\n"
+                                  "            if native_counts.get(abi) != 39 or 'lib/' + abi + "
+                                  "'/libglide-webp.so' not in names:\n"
+                                  '                raise ValueError("Incomplete dual-ARM inventory")\n'),
+                                 ('                targetSdk=target, signerSha256=signer, sha256=sha256(apk), '
+                                  'sizeBytes=apk.stat().st_size,\n'
+                                  "                standalone=True, supportedAbis=['arm64-v8a', 'armeabi-v7a'], "
+                                  "twitchVersion='31.2.0',\n"
+                                  '                dex=dex_counts, native=native_counts, authorities=authorities, '
+                                  'v3=True, zipalign=True,\n'
+                                  '                testSigningIdentity=(signer == TEST_SIGNER))\n'
+                                  '\n'
+                                  '\n',
+                                  '                targetSdk=target, signerSha256=signer, sha256=sha256(apk), '
+                                  'sizeBytes=apk.stat().st_size,\n'
+                                  "                standalone=True, supportedAbis=['arm64-v8a', 'armeabi-v7a'], "
+                                  "twitchVersion='31.2.0',\n"
+                                  '                dex=dex_counts, native=native_counts, authorities=authorities, '
+                                  'v3=True, zipalign=True,\n'
+                                  '                nativeZipAlignment=NATIVE_ZIP_ALIGNMENT, '
+                                  'nativeElfAlignment=native_elf_alignment,\n'
+                                  '                zipalignBuildTools=ZIPALIGN_BUILD_TOOLS,\n'
+                                  '                testSigningIdentity=(signer == TEST_SIGNER))\n'
+                                  '\n'
+                                  '\n')],
+ 'tools/build_production.py': [('    "tools/build_production.py", "tools/docker_build.sh",\n'
+                                '    "tools/prepare_twitch_input.py", "tools/twitch-31.2.0-inputs.json",\n'
+                                '    "tools/verify_release_apk.py", "tools/release_metadata.py",\n'
+                                '    "tests/stage9_infrastructure.py", "RELEASING.md",\n'
+                                ')\n'
+                                '\n',
+                                '    "tools/build_production.py", "tools/docker_build.sh",\n'
+                                '    "tools/prepare_twitch_input.py", "tools/twitch-31.2.0-inputs.json",\n'
+                                '    "tools/verify_release_apk.py", "tools/release_metadata.py",\n'
+                                '    "tools/apk_native_policy.py",\n'
+                                '    "tools/webpdecoder-inputs.json",\n'
+                                '    "tests/stage9_infrastructure.py", "RELEASING.md",\n'
+                                ')\n'
+                                '\n')],
+ 'Dockerfile': [('    unzip -q commandlinetools.zip && rm commandlinetools.zip && \\\n'
+                 '    yes | /opt/cmdline-tools/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \\\n'
+                 '    "build-tools;30.0.3" "platforms;android-30"\n'
+                 '\n'
+                 'RUN curl --fail --location --retry 3 -o apktool_2.9.3.jar \\\n'
+                 '    https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar && \\\n',
+                 '    unzip -q commandlinetools.zip && rm commandlinetools.zip && \\\n'
+                 '    yes | /opt/cmdline-tools/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \\\n'
+                 '    "build-tools;30.0.3" "platforms;android-30"\n'
+                 '\n'
+                 '# Dedicated official -P 16 zipalign. Gradle, aapt and apksigner stay on 30.0.3.\n'
+                 '# Google repository index SHA-1: 2cfaa0bbb2336e9ec18ed3ecea84fa2e2af607bc.\n'
+                 'RUN curl --fail --location --retry 3 -o build-tools_r35_linux.zip \\\n'
+                 '    https://dl.google.com/android/repository/build-tools_r35_linux.zip && \\\n'
+                 "    echo 'bd3a4966912eb8b30ed0d00b0cda6b6543b949d5ffe00bea54c04c81e1561d88  "
+                 "build-tools_r35_linux.zip' | sha256sum -c - && \\\n"
+                 '    unzip -q build-tools_r35_linux.zip -d "$ANDROID_SDK_ROOT/build-tools" && \\\n'
+                 '    mv "$ANDROID_SDK_ROOT/build-tools/android-15" "$ANDROID_SDK_ROOT/build-tools/35.0.0" && \\\n'
+                 '    rm build-tools_r35_linux.zip\n'
+                 '\n'
+                 'RUN curl --fail --location --retry 3 -o apktool_2.9.3.jar \\\n'
+                 '    https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar && \\\n')],
+ '.github/workflows/docker.yml': [('      - .dockerignore\n'
+                                   '      - compose.yaml\n'
+                                   '      - tools/docker_build.sh\n'
+                                   '      - .github/workflows/docker.yml\n'
+                                   '  workflow_dispatch: {}\n'
+                                   '\n',
+                                   '      - .dockerignore\n'
+                                   '      - compose.yaml\n'
+                                   '      - tools/docker_build.sh\n'
+                                   '      - tools/apk_native_policy.py\n'
+                                   '      - tests/community_native_packaging.py\n'
+                                   '      - .github/workflows/docker.yml\n'
+                                   '  workflow_dispatch: {}\n'
+                                   '\n'),
+                                  ('            java -version\n'
+                                   '            python3 --version\n'
+                                   '            test -x "$ANDROID_SDK_ROOT/build-tools/30.0.3/zipalign"\n'
+                                   '            test -f "$ANDROID_SDK_ROOT/platforms/android-30/android.jar"\n'
+                                   '            # APKEditor 1.4.9 returns 2 for informational commands.\n'
+                                   '            if apkeditor_version=$(java -jar "$APKEDITOR_PATH" -version '
+                                   '2>&1); then\n',
+                                   '            java -version\n'
+                                   '            python3 --version\n'
+                                   '            test -x "$ANDROID_SDK_ROOT/build-tools/30.0.3/zipalign"\n'
+                                   '            test -x "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign"\n'
+                                   '            test -f "$ANDROID_SDK_ROOT/platforms/android-30/android.jar"\n'
+                                   '            # APKEditor 1.4.9 returns 2 for informational commands.\n'
+                                   '            if apkeditor_version=$(java -jar "$APKEDITOR_PATH" -version '
+                                   '2>&1); then\n'),
+                                  ('              exit 1\n'
+                                   '            fi\n'
+                                   '            printf "%s\\n" "$apkeditor_version"\n'
+                                   "          '\n",
+                                   '              exit 1\n'
+                                   '            fi\n'
+                                   '            printf "%s\\n" "$apkeditor_version"\n'
+                                   '            probe_dir=$(mktemp -d)\n'
+                                   '            mkdir -p "$probe_dir/lib/arm64-v8a"\n'
+                                   '            printf probe > "$probe_dir/lib/arm64-v8a/probe.so"\n'
+                                   '            (cd "$probe_dir" && zip -0 -q probe-unaligned.apk '
+                                   'lib/arm64-v8a/probe.so)\n'
+                                   '            "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -P 16 4 '
+                                   '"$probe_dir/probe-unaligned.apk" "$probe_dir/probe-aligned.apk"\n'
+                                   '            "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -c -P 16 4 '
+                                   '"$probe_dir/probe-aligned.apk"\n'
+                                   "          '\n")],
+ '.github/workflows/ci.yml': [('          python3 tests/stage9_infrastructure.py\n'
+                               '          python3 tests/community_updater.py\n'
+                               '          python3 tests/community_signing.py\n'
+                               '      - name: Shell syntax\n'
+                               '        run: |\n'
+                               '          for script in initworkspace disassemble buildsource build patch '
+                               'tools/docker_build.sh; do\n',
+                               '          python3 tests/stage9_infrastructure.py\n'
+                               '          python3 tests/community_updater.py\n'
+                               '          python3 tests/community_signing.py\n'
+                               '          python3 tests/community_webp.py\n'
+                               '          python3 tests/community_native_packaging.py\n'
+                               '      - name: Shell syntax\n'
+                               '        run: |\n'
+                               '          for script in initworkspace disassemble buildsource build patch '
+                               'tools/docker_build.sh; do\n')],
+ 'RELEASING.md': [('1. `tools/build_production.py --unsigned` produces **unsigned.apk + unsigned.json**,\n'
+                   '   never a verified release. No signing inputs may enter that build process.\n'
+                   '2. `tools/sign_release.py` runs separately, preferably in an offline read-only\n'
+                   '   SDK container, after the build has exited. It aligns first with SDK 30.0.3\n'
+                   '   `zipalign -p 4`, signs with SDK `apksigner`, then runs the unchanged complete\n'
+                   '   `verify_release_apk.py` checks before exporting **twitch.apk + verification.json**.\n'
+                   '   Gradle, project shell scripts and application bytecode are not run there.\n'
+                   '\n',
+                   '1. `tools/build_production.py --unsigned` produces **unsigned.apk + unsigned.json**,\n'
+                   '   never a verified release. No signing inputs may enter that build process.\n'
+                   '2. `tools/sign_release.py` runs separately, preferably in an offline read-only\n'
+                   '   SDK container, after the build has exited. It aligns first with SDK 35.0.0\n'
+                   '   `zipalign -P 16 4`, signs with SDK 30.0.3 `apksigner`, then runs the complete\n'
+                   '   `verify_release_apk.py` checks before exporting **twitch.apk + verification.json**.\n'
+                   '   Gradle, project shell scripts and application bytecode are not run there.\n'
+                   '\n'),
+                  ('| `KSPASS_FILE` | Preferred: existing absolute external UTF-8 password file, without BOM, one '
+                   'nonempty line (optional LF/CRLF). Treat it as a secret and mount read-only. |\n'
+                   '| `KSPASS` | Compatibility alternative to the file, never both. SDK arguments contain only '
+                   '`env:KSPASS`, not its value. Avoid Docker environment secrets where file mounts suffice. |\n'
+                   '| `EXPECTED_SIGNER_SHA256` | Required 64 hex characters, without colons, for the approved '
+                   'certificate. Public debug identity is rejected. This fingerprint is public policy, not a '
+                   'private key. |\n'
+                   '| `ANDROID_SDK_ROOT` / `--sdk` | Existing SDK with Build Tools 30.0.3. No substitute '
+                   'toolchain or generated key is selected automatically. |\n'
+                   '\n'
+                   'The fixed key alias remains **bttv-android**, and store/key passwords must be the\n'
+                   'same. The signer first tries the store password for the key; stdin is closed, so\n',
+                   '| `KSPASS_FILE` | Preferred: existing absolute external UTF-8 password file, without BOM, one '
+                   'nonempty line (optional LF/CRLF). Treat it as a secret and mount read-only. |\n'
+                   '| `KSPASS` | Compatibility alternative to the file, never both. SDK arguments contain only '
+                   '`env:KSPASS`, not its value. Avoid Docker environment secrets where file mounts suffice. |\n'
+                   '| `EXPECTED_SIGNER_SHA256` | Required 64 hex characters, without colons, for the approved '
+                   'certificate. Public debug identity is rejected. This fingerprint is public policy, not a '
+                   'private key. |\n'
+                   '| `ANDROID_SDK_ROOT` / `--sdk` | Existing SDK with Build Tools 30.0.3 plus 35.0.0. Only '
+                   '`zipalign` comes from 35.0.0; Gradle, `aapt` and `apksigner` remain on 30.0.3. No fallback or '
+                   'generated key is selected automatically. |\n'
+                   '\n'
+                   'The fixed key alias remains **bttv-android**, and store/key passwords must be the\n'
+                   'same. The signer first tries the store password for the key; stdin is closed, so\n'),
+                  ('building instead of silently falling back or passing passwords in argv. Do not\n'
+                   'put signing settings in the repository `.env`. Keep secrets outside source,\n'
+                   'image build contexts, console commands, logs, test fixtures and artifacts.\n'
+                   '\n'
+                   'Android upgrades and the in-app updater require signing compatibility. The updater\n'
+                   'requires exact installed/downloaded certificate equality. A new private key cannot\n',
+                   'building instead of silently falling back or passing passwords in argv. Do not\n'
+                   'put signing settings in the repository `.env`. Keep secrets outside source,\n'
+                   'image build contexts, console commands, logs, test fixtures and artifacts.\n'
+                   '\n'
+                   'The Dockerfile installs the official Linux Build Tools 35.0.0 archive alongside\n'
+                   '30.0.3, pinned to SHA-256\n'
+                   '`BD3A4966912EB8B30ED0D00B0CDA6B6543B949D5FFE00BEA54C04C81E1561D88`.\n'
+                   'For a separately provisioned SDK, install the exact official `build-tools;35.0.0`\n'
+                   'package; do not replace 30.0.3 or substitute an arbitrary executable.\n'
+                   'The consumer APK includes only `arm64-v8a` and `armeabi-v7a`. Final verification\n'
+                   'rejects other ABI directories, compressed/misaligned native entries and invalid\n'
+                   'ELF load segments. Native ZIP offsets must be multiples of 16384; ARM64 ELF\n'
+                   'segments must support 16 KB pages, while ARMv7 retains 4 KB alignment. This also\n'
+                   'preserves 4 KB-device alignment. Alignment must happen BEFORE signing, never by\n'
+                   'editing an already signed APK. Historical 4 KB-aligned archives remain preserved\n'
+                   'but do not satisfy this stricter gate for newly prepared release candidates.\n'
+                   '\n'
+                   'Android upgrades and the in-app updater require signing compatibility. The updater\n'
+                   'requires exact installed/downloaded certificate equality. A new private key cannot\n')]}
+
+def before_webp_remediation(path, text):
+    for old, new in _WEBP_EDITS.get(path, []):
+        if not new or text.count(new) != 1:
+            raise AssertionError('Unexpected WebP remediation block: ' + path)
+        text = text.replace(new, old, 1)
+    return text
+
+
+if __name__ == '__main__':
+    unittest.main()

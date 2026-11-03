@@ -17,6 +17,8 @@ INFRA_INPUTS = (
     "tools/build_production.py", "tools/docker_build.sh",
     "tools/prepare_twitch_input.py", "tools/twitch-31.2.0-inputs.json",
     "tools/verify_release_apk.py", "tools/release_metadata.py",
+    "tools/apk_native_policy.py",
+    "tools/webpdecoder-inputs.json",
     "tests/stage9_infrastructure.py", "RELEASING.md",
 )
 

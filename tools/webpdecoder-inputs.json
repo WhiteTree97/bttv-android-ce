@@ -1,0 +1,176 @@
+{
+  "coordinate": "com.github.zjupure:webpdecoder:2.7.4.16.0",
+  "upstreamRevision": "56d3f2523d546bd069600b8ee2435a0e0e2c3c07",
+  "glideVersion": "4.12.0",
+  "libwebpVersion": "1.3.2",
+  "artifacts": {
+    "webpdecoder-2.7.4.16.0.aar": {
+      "file": "webpdecoder-2.7.4.16.0.aar",
+      "url": "https://repo.maven.apache.org/maven2/com/github/zjupure/webpdecoder/2.7.4.16.0/webpdecoder-2.7.4.16.0.aar",
+      "sha256": "5E3D54C8107EAD89DA4DA196DD12F0C648DAF17B0EF9532F268BA2EAC0E82B34",
+      "size": 823083
+    },
+    "webpdecoder-2.7.4.16.0.pom": {
+      "file": "webpdecoder-2.7.4.16.0.pom",
+      "url": "https://repo.maven.apache.org/maven2/com/github/zjupure/webpdecoder/2.7.4.16.0/webpdecoder-2.7.4.16.0.pom",
+      "sha256": "D326CB517BFF5BDED74FB4317C884D22DA8EF78319B100851FAE3ED715B03308",
+      "size": 1814
+    },
+    "webpdecoder-2.7.4.16.0-sources.jar": {
+      "file": "webpdecoder-2.7.4.16.0-sources.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/github/zjupure/webpdecoder/2.7.4.16.0/webpdecoder-2.7.4.16.0-sources.jar",
+      "sha256": "7811589B827352F27FC4FA6B81E227441E3A2A1D255D2BDCEE358D9434DAC410",
+      "size": 42569
+    },
+    "glide-4.12.0.jar": {
+      "file": "glide-4.12.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/github/bumptech/glide/glide/4.12.0/glide-4.12.0.jar",
+      "sha256": "FF42C720EB49FE1D8C5A15956B676977098583441002BDD60C1E08EE5F1C63D4",
+      "size": 723740
+    },
+    "gifdecoder-4.12.0.jar": {
+      "file": "gifdecoder-4.12.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/github/bumptech/glide/gifdecoder/4.12.0/gifdecoder-4.12.0.jar",
+      "sha256": "AC362991C51AC7117B3A0ACEB93D65C8E8951CDA76D56766975587B8E75FF387",
+      "size": 18423
+    }
+  },
+  "sourceEvidence": [
+    {
+      "file": "LICENSE",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/LICENSE",
+      "sha256": "5D0554566EB69BEEBEF8E267D160416864CEB5546A25609650BDCBDED48777DE"
+    },
+    {
+      "file": "webp_decoder--src--main--jni--Android.mk",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/webp_decoder/src/main/jni/Android.mk",
+      "sha256": "79F5A9269D9DD30D45CCBC6C67D01FA4F3E17AD76B4E338FC8ACD594697B37C1"
+    },
+    {
+      "file": "webp_decoder--src--main--jni--Application.mk",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/webp_decoder/src/main/jni/Application.mk",
+      "sha256": "F8B45260176B227D75357B9FDFC78E8309BE37915323480DFAF5B88C4BA08554"
+    },
+    {
+      "file": "webp_decoder--src--main--jni--libwebp--Android.mk",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/webp_decoder/src/main/jni/libwebp/Android.mk",
+      "sha256": "1B6145BCC6FCDB0ABC6D1D0E1C92A40AD11D155330EDF4E9697D5E7F131CBA50"
+    },
+    {
+      "file": "webp_decoder--src--main--jni--libwebp--src--utils--huffman_utils.c",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/webp_decoder/src/main/jni/libwebp/src/utils/huffman_utils.c",
+      "sha256": "76F5806C72E84054E629052F3D26DC86E1FC7C2FF0446EA7DD1FC28953B954C4"
+    },
+    {
+      "file": "webp_decoder--src--main--jni--libwebp--src--dec--webp_dec.c",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/webp_decoder/src/main/jni/libwebp/src/dec/webp_dec.c",
+      "sha256": "060C2A7A9CACA443B60E55DECBAAED2D2726370BE057CDBE4F22FC7ACD27F3D3"
+    },
+    {
+      "file": "webp_decoder--src--main--jni--webp.cpp",
+      "url": "https://raw.githubusercontent.com/zjupure/GlideWebpDecoder/56d3f2523d546bd069600b8ee2435a0e0e2c3c07/webp_decoder/src/main/jni/webp.cpp",
+      "sha256": "3F913BFFB1D9391EC197D60716B8ADEE766FCF1CD53ADA2411E6BC2A96345125"
+    },
+    {
+      "file": "libwebp-1.3.2-COPYING",
+      "url": "https://raw.githubusercontent.com/webmproject/libwebp/v1.3.2/COPYING",
+      "sha256": "5AEC868F669E384A22372A4E8A1A6CD7D44C64CD451F960CA69CC170D1E13ACF"
+    },
+    {
+      "file": "libwebp-1.3.2-PATENTS",
+      "url": "https://raw.githubusercontent.com/webmproject/libwebp/v1.3.2/PATENTS",
+      "sha256": "CC3273E0694EA5896145E0677699B53471B03EA43021DDC50E7923FBB9F5023C"
+    }
+  ],
+  "native": {
+    "jni/arm64-v8a/libglide-webp.so": {
+      "bits": 64,
+      "machine": 183,
+      "loads": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "align": 16384
+        },
+        {
+          "offset": 395456,
+          "vaddr": 411840,
+          "align": 16384
+        }
+      ],
+      "version": "1.3.2",
+      "versionCode": "406080522000a072c0035fd6",
+      "sha256": "4C439BD8FACCB62F1D257551791FBAC5D3AD197D01CBDB1A2144B252B8D24AF8"
+    },
+    "jni/armeabi-v7a/libglide-webp.so": {
+      "bits": 32,
+      "machine": 40,
+      "loads": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "align": 4096
+        },
+        {
+          "offset": 312164,
+          "vaddr": 316260,
+          "align": 4096
+        }
+      ],
+      "version": "1.3.2",
+      "versionCode": "020300e3010040e31eff2fe1",
+      "sha256": "36571E68A136635506DCA973C807B65591F2F6E14F80281B0F51B9FE66090F31"
+    },
+    "jni/x86/libglide-webp.so": {
+      "bits": 32,
+      "machine": 3,
+      "loads": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "align": 4096
+        },
+        {
+          "offset": 496432,
+          "vaddr": 500528,
+          "align": 4096
+        }
+      ],
+      "version": null,
+      "versionCode": "5589e583e4fcb80203010089ec5dc3",
+      "sha256": "3D5F4D99B97E4F144D6817C2BDE308EF7C4FE78539A12D15C69CDAA249371F87"
+    },
+    "jni/x86_64/libglide-webp.so": {
+      "bits": 64,
+      "machine": 62,
+      "loads": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "align": 16384
+        },
+        {
+          "offset": 509696,
+          "vaddr": 526080,
+          "align": 16384
+        }
+      ],
+      "version": null,
+      "versionCode": "b802030100c3",
+      "sha256": "C0571B8C57941583960BC6CD7C988069FE6672A5F5AEFCF7F9F8E7988BF62DA6"
+    }
+  },
+  "replacedArtifact": {
+    "coordinate": "com.github.zjupure:webpdecoder:2.0.4.12.0",
+    "aarSha256": "EED26A7819E2F20AC4305851B3B789D5E14CC01F6659A66B52D73B273A873740",
+    "classesSha256": "63EE4E915A54172D4068225B5E9168F89C7B39D768943E088B10DFA062F1CA98",
+    "armNative": {
+      "jni/arm64-v8a/libglide-webp.so": "5B25B645A55841E9B8193E2A160568235316DAEE0864CE21D4D44211A72D6CAD",
+      "jni/armeabi-v7a/libglide-webp.so": "84841FDC2A3E0EA8F99C9BC32C94A6C068832C8D72CAC1A053C23B63C74AB905"
+    }
+  },
+  "packagedAbis": [
+    "arm64-v8a",
+    "armeabi-v7a"
+  ]
+}

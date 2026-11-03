@@ -16,6 +16,15 @@ RUN curl --fail --location --retry 3 -o commandlinetools.zip \
     yes | /opt/cmdline-tools/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" \
     "build-tools;30.0.3" "platforms;android-30"
 
+# Dedicated official -P 16 zipalign. Gradle, aapt and apksigner stay on 30.0.3.
+# Google repository index SHA-1: 2cfaa0bbb2336e9ec18ed3ecea84fa2e2af607bc.
+RUN curl --fail --location --retry 3 -o build-tools_r35_linux.zip \
+    https://dl.google.com/android/repository/build-tools_r35_linux.zip && \
+    echo 'bd3a4966912eb8b30ed0d00b0cda6b6543b949d5ffe00bea54c04c81e1561d88  build-tools_r35_linux.zip' | sha256sum -c - && \
+    unzip -q build-tools_r35_linux.zip -d "$ANDROID_SDK_ROOT/build-tools" && \
+    mv "$ANDROID_SDK_ROOT/build-tools/android-15" "$ANDROID_SDK_ROOT/build-tools/35.0.0" && \
+    rm build-tools_r35_linux.zip
+
 RUN curl --fail --location --retry 3 -o apktool_2.9.3.jar \
     https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar && \
     echo '7956eb04194300ce0d0a84ad18771eebc94b89fb8d1ddcce8ea4c056818646f4  apktool_2.9.3.jar' | sha256sum -c - && \

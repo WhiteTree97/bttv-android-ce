@@ -1,12 +1,14 @@
 """Optional native purchase redirect invariants; no device or payment operations."""
 from pathlib import Path
 import re
+import runpy
 import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+before_webp_remediation = runpy.run_path(str(ROOT/'tests/community_webp.py'))['before_webp_remediation']
 DECODE = ROOT/'.bttv-cache/disass'
 PATCHES = ['bho.smali.patch', 'bttvcompat.WebPurchaseBridge.smali.patch',
            'dj20.smali.patch', 'iwn.smali.patch', 'zz_dj20_relocation.patch']
@@ -142,7 +144,11 @@ class WebPurchaseTests(unittest.TestCase):
                      'mod/app/src/main/java/bttv/badge/ChatterinoHttp.java',
                      'patches/AndroidManifest.xml.patch', 'buildsource', 'mod/app/build.gradle']:
             original = subprocess.check_output(['git', 'show', 'HEAD:'+path], cwd=ROOT).decode().replace('\r\n', '\n')
-            self.assertEqual(read(path), original, path)
+            current = read(path)
+            if path == 'mod/app/build.gradle':
+                original = subprocess.check_output(['git', 'show', '8a5ddeea8a00a2800b294594699dfa3ed16e3e09:'+path], cwd=ROOT).decode()
+                current = before_webp_remediation(path, current)
+            self.assertEqual(current, original, path)
 
 
 if __name__ == '__main__':

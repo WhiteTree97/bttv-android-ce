@@ -16,6 +16,7 @@ import tempfile
 import zipfile
 
 from verify_release_apk import ROOT, TEST_SIGNER, sha256, verify
+from apk_native_policy import zipalign_tool
 
 
 # Only these literal tokens may reach failure output. Never interpolate an
@@ -117,6 +118,9 @@ def failure_category(stage, error):
                 'BTTV injection missing from classes7.dex': 'DEX_INVALID',
                 'Missing packaged license resource': 'NOTICES_MISSING',
                 'Native architecture mismatch': 'NATIVE_INVALID',
+                'Unexpected native ABI': 'NATIVE_INVALID',
+                'Native ELF load alignment failure': 'NATIVE_INVALID',
+                'Unexpected WebP decoder': 'NATIVE_INVALID',
                 'Incomplete dual-ARM inventory': 'NATIVE_INVALID',
                 'Original Twitch native library changed': 'NATIVE_INVALID',
             }
@@ -202,7 +206,7 @@ def sign(apk, source, output, sdk=None):
             work = Path(directory)
             aligned, signed = work / 'aligned.apk', work / 'signed.apk'
             stage = 'alignment'
-            sdk_run([tools / 'zipalign', '-p', '4', apk, aligned], env)
+            sdk_run([zipalign_tool(tools.parent.parent), '-P', '16', '4', apk, aligned], env)
             stage = 'signing'
             sdk_run([tools / 'apksigner', 'sign', '--ks', key, '--ks-key-alias', 'bttv-android',
                      '--ks-pass', password_source,

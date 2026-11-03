@@ -29,6 +29,8 @@ jobs:
           python3 tests/stage9_infrastructure.py
           python3 tests/community_updater.py
           python3 tests/community_signing.py
+          python3 tests/community_webp.py
+          python3 tests/community_native_packaging.py
       - name: Shell syntax
         run: |
           for script in initworkspace disassemble buildsource build patch tools/docker_build.sh; do

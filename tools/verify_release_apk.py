@@ -10,6 +10,8 @@ import struct
 import subprocess
 import zipfile
 import zlib
+from apk_native_policy import (NATIVE_ZIP_ALIGNMENT, SUPPORTED_ABIS,
+                               ZIPALIGN_BUILD_TOOLS, check_native_entry, zipalign_tool)
 
 TEST_SIGNER = "1E08A903AEF9C3A721510B64EC764D01D3D094EB954161B62544EA8F187B5953"
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,8 +68,9 @@ def verify(apk, source, sdk=None, expected_signer=None, allow_test=False):
         raise ValueError("Unexpected signing certificate")
     if signer == TEST_SIGNER and not allow_test:
         raise ValueError("Public bundled debug key is not a production signing identity")
-    alignment = run(tools / "zipalign", "-c", "-p", "4", apk)
-    dex_counts, native_counts = {}, {}
+    alignment = run(zipalign_tool(sdk), "-c", "-P", "16", "4", apk)
+    dex_counts, native_counts, native_elf_alignment = {}, {}, {}
+    decoder_pins = json.loads((ROOT / 'tools/webpdecoder-inputs.json').read_text())['native']
     with zipfile.ZipFile(apk) as z, apk.open("rb") as raw:
         names = z.namelist()
         if len(names) != len(set(names)) or z.testzip():
@@ -95,23 +98,18 @@ def verify(apk, source, sdk=None, expected_signer=None, allow_test=False):
             if not z.read("res/raw/" + notice):
                 raise ValueError("Missing packaged license resource")
         for entry in z.infolist():
+            if entry.filename.startswith('lib/') and entry.filename != 'lib/':
+                if entry.filename.split('/')[1] not in SUPPORTED_ABIS:
+                    raise ValueError('Unexpected native ABI')
             if not entry.filename.startswith("lib/") or not entry.filename.endswith(".so"):
                 continue
-            abi = entry.filename.split('/')[1]
+            abi, elf_align = check_native_entry(entry, raw, z.read(entry))
+            if entry.filename == 'lib/' + abi + '/libglide-webp.so':
+                expected_decoder = decoder_pins['jni/' + abi + '/libglide-webp.so']['sha256']
+                if hashlib.sha256(z.read(entry)).hexdigest().upper() != expected_decoder:
+                    raise ValueError('Unexpected WebP decoder')
             native_counts[abi] = native_counts.get(abi, 0) + 1
-            raw.seek(entry.header_offset)
-            header = raw.read(30)
-            filename_size, extra_size = struct.unpack_from('<HH', header, 26)
-            offset = entry.header_offset + 30 + filename_size + extra_size
-            if entry.compress_type != zipfile.ZIP_STORED or offset % 4096:
-                raise ValueError("Native compression/alignment failure: " + entry.filename)
-            data = z.read(entry)
-            if data[:4] != b'\x7fELF' or len(data) < 64:
-                raise ValueError("Invalid native ELF: " + entry.filename)
-            if abi in ['arm64-v8a', 'armeabi-v7a']:
-                elf = (data[4], data[5], struct.unpack_from('<H', data, 18)[0])
-                if elf != ((2, 1, 183) if abi == 'arm64-v8a' else (1, 1, 40)):
-                    raise ValueError("Native architecture mismatch")
+            native_elf_alignment[abi] = min(native_elf_alignment.get(abi, elf_align), elf_align)
         for abi in ['arm64-v8a', 'armeabi-v7a']:
             if native_counts.get(abi) != 39 or 'lib/' + abi + '/libglide-webp.so' not in names:
                 raise ValueError("Incomplete dual-ARM inventory")
@@ -125,6 +123,8 @@ def verify(apk, source, sdk=None, expected_signer=None, allow_test=False):
                 targetSdk=target, signerSha256=signer, sha256=sha256(apk), sizeBytes=apk.stat().st_size,
                 standalone=True, supportedAbis=['arm64-v8a', 'armeabi-v7a'], twitchVersion='31.2.0',
                 dex=dex_counts, native=native_counts, authorities=authorities, v3=True, zipalign=True,
+                nativeZipAlignment=NATIVE_ZIP_ALIGNMENT, nativeElfAlignment=native_elf_alignment,
+                zipalignBuildTools=ZIPALIGN_BUILD_TOOLS,
                 testSigningIdentity=(signer == TEST_SIGNER))
 
 

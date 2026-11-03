@@ -92,8 +92,8 @@ Private releases now use two distinct stages:
 1. `tools/build_production.py --unsigned` produces **unsigned.apk + unsigned.json**,
    never a verified release. No signing inputs may enter that build process.
 2. `tools/sign_release.py` runs separately, preferably in an offline read-only
-   SDK container, after the build has exited. It aligns first with SDK 30.0.3
-   `zipalign -p 4`, signs with SDK `apksigner`, then runs the unchanged complete
+   SDK container, after the build has exited. It aligns first with SDK 35.0.0
+   `zipalign -P 16 4`, signs with SDK 30.0.3 `apksigner`, then runs the complete
    `verify_release_apk.py` checks before exporting **twitch.apk + verification.json**.
    Gradle, project shell scripts and application bytecode are not run there.
 
@@ -105,7 +105,7 @@ Signing settings (supplied only to stage 2):
 | `KSPASS_FILE` | Preferred: existing absolute external UTF-8 password file, without BOM, one nonempty line (optional LF/CRLF). Treat it as a secret and mount read-only. |
 | `KSPASS` | Compatibility alternative to the file, never both. SDK arguments contain only `env:KSPASS`, not its value. Avoid Docker environment secrets where file mounts suffice. |
 | `EXPECTED_SIGNER_SHA256` | Required 64 hex characters, without colons, for the approved certificate. Public debug identity is rejected. This fingerprint is public policy, not a private key. |
-| `ANDROID_SDK_ROOT` / `--sdk` | Existing SDK with Build Tools 30.0.3. No substitute toolchain or generated key is selected automatically. |
+| `ANDROID_SDK_ROOT` / `--sdk` | Existing SDK with Build Tools 30.0.3 plus 35.0.0. Only `zipalign` comes from 35.0.0; Gradle, `aapt` and `apksigner` remain on 30.0.3. No fallback or generated key is selected automatically. |
 
 The fixed key alias remains **bttv-android**, and store/key passwords must be the
 same. The signer first tries the store password for the key; stdin is closed, so
@@ -116,6 +116,19 @@ with no signing inputs retain the existing public debug identity; direct
 building instead of silently falling back or passing passwords in argv. Do not
 put signing settings in the repository `.env`. Keep secrets outside source,
 image build contexts, console commands, logs, test fixtures and artifacts.
+
+The Dockerfile installs the official Linux Build Tools 35.0.0 archive alongside
+30.0.3, pinned to SHA-256
+`BD3A4966912EB8B30ED0D00B0CDA6B6543B949D5FFE00BEA54C04C81E1561D88`.
+For a separately provisioned SDK, install the exact official `build-tools;35.0.0`
+package; do not replace 30.0.3 or substitute an arbitrary executable.
+The consumer APK includes only `arm64-v8a` and `armeabi-v7a`. Final verification
+rejects other ABI directories, compressed/misaligned native entries and invalid
+ELF load segments. Native ZIP offsets must be multiples of 16384; ARM64 ELF
+segments must support 16 KB pages, while ARMv7 retains 4 KB alignment. This also
+preserves 4 KB-device alignment. Alignment must happen BEFORE signing, never by
+editing an already signed APK. Historical 4 KB-aligned archives remain preserved
+but do not satisfy this stricter gate for newly prepared release candidates.
 
 Android upgrades and the in-app updater require signing compatibility. The updater
 requires exact installed/downloaded certificate equality. A new private key cannot

@@ -6,6 +6,8 @@ on:
       - .dockerignore
       - compose.yaml
       - tools/docker_build.sh
+      - tools/apk_native_policy.py
+      - tests/community_native_packaging.py
       - .github/workflows/docker.yml
   workflow_dispatch: {}
 
@@ -28,6 +30,7 @@ jobs:
             java -version
             python3 --version
             test -x "$ANDROID_SDK_ROOT/build-tools/30.0.3/zipalign"
+            test -x "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign"
             test -f "$ANDROID_SDK_ROOT/platforms/android-30/android.jar"
             # APKEditor 1.4.9 returns 2 for informational commands.
             if apkeditor_version=$(java -jar "$APKEDITOR_PATH" -version 2>&1); then
@@ -40,4 +43,10 @@ jobs:
               exit 1
             fi
             printf "%s\n" "$apkeditor_version"
+            probe_dir=$(mktemp -d)
+            mkdir -p "$probe_dir/lib/arm64-v8a"
+            printf probe > "$probe_dir/lib/arm64-v8a/probe.so"
+            (cd "$probe_dir" && zip -0 -q probe-unaligned.apk lib/arm64-v8a/probe.so)
+            "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -P 16 4 "$probe_dir/probe-unaligned.apk" "$probe_dir/probe-aligned.apk"
+            "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -c -P 16 4 "$probe_dir/probe-aligned.apk"
           '

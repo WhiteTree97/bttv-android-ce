@@ -1,5 +1,6 @@
 """Approved CE release versions, final injection boundary and unchanged release trust inputs."""
 import json
+import runpy
 from pathlib import Path
 import subprocess
 import unittest
@@ -7,6 +8,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = '62cdb4941ad387beed96f902843c4dc87a864731'
+before_webp_remediation = runpy.run_path(str(ROOT/'tests/community_webp.py'))['before_webp_remediation']
 
 
 def read(path):
@@ -44,7 +46,7 @@ class CommunityVersion(unittest.TestCase):
 
     def test_library_and_build_shell_versions_are_not_app_versions(self):
         for path in ['mod/app/build.gradle', 'mod/consumer/build.gradle', 'mod/twitch/build.gradle']:
-            self.assertEqual(read(path), original(path), path)
+            self.assertEqual(before_webp_remediation(path, read(path)), original(path), path)
             self.assertIn('versionName "1.0"', read(path))
             self.assertIn('versionCode 1', read(path))
         verifier = read('mod/app/src/main/java/bttv/updater/UpdateVerifier.java')
@@ -61,7 +63,7 @@ class CommunityVersion(unittest.TestCase):
                  'mod/app/src/main/java/bttv/updater/UpdateTransfer.java',
                  'mod/app/src/main/java/bttv/updater/UpdateVerifier.java']
         for path in paths:
-            self.assertEqual(read(path), original(path), path)
+            self.assertEqual(before_webp_remediation(path,read(path)), original(path), path)
         pin = json.loads(read(paths[0]))
         self.assertEqual(pin['versionName'], '31.2.0')
         self.assertIn('tv.twitch.bttvandroid.app', read(paths[1]))
@@ -75,7 +77,7 @@ class CommunityVersion(unittest.TestCase):
         self.assertEqual(resources.find("string[@name='app_name']").get('translatable'), 'false')
         self.assertIn('android:label="@string/app_name"', read('patches/AndroidManifest.xml.patch'))
         self.assertEqual(read('LICENSE'), original('LICENSE'))
-        self.assertEqual(read('THIRD_PARTY_NOTICES.md'), original('THIRD_PARTY_NOTICES.md'))
+        self.assertEqual(before_webp_remediation('THIRD_PARTY_NOTICES.md', read('THIRD_PARTY_NOTICES.md')), original('THIRD_PARTY_NOTICES.md'))
 
 
 if __name__ == '__main__':

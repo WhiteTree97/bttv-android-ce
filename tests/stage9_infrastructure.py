@@ -142,6 +142,16 @@ class Infrastructure(unittest.TestCase):
             root=Path(temp);bin_dir=root/'bin';bin_dir.mkdir()
             sdk=root/'sdk';(sdk/'build-tools/30.0.3').mkdir(parents=True);(sdk/'platforms/android-30').mkdir(parents=True)
             zipalign=sdk/'build-tools/30.0.3/zipalign';zipalign.write_text('fixture executable');zipalign.chmod(0o755)
+            modern=sdk/'build-tools/35.0.0/zipalign';modern.parent.mkdir()
+            modern.write_text('''#!/bin/bash
+if [ "$1" = -P ] && [ "$2" = 16 ] && [ "$3" = 4 ]; then
+  cp "$4" "$5"
+elif [ "$1" = -c ] && [ "$2" = -P ] && [ "$3" = 16 ] && [ "$4" = 4 ]; then
+  test -f "$5"
+else
+  exit 9
+fi
+''');modern.chmod(0o755)
             platform=sdk/'platforms/android-30/android.jar';platform.write_text('not a real SDK JAR')
             java=bin_dir/'java';java.write_text('''#!/bin/bash
 if [ "$1" = -version ]; then
@@ -176,6 +186,9 @@ echo python-fixture
             result=subprocess.run(['bash','-c',shell],env=env,capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0);self.assertNotIn(expected,result.stdout+result.stderr)
             zipalign.chmod(0o755);platform.unlink()
+            result=subprocess.run(['bash','-c',shell],env=env,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0);self.assertNotIn(expected,result.stdout+result.stderr)
+            platform.write_text('not a real SDK JAR');modern.chmod(0o644)
             result=subprocess.run(['bash','-c',shell],env=env,capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0);self.assertNotIn(expected,result.stdout+result.stderr)
 

@@ -19,8 +19,9 @@ Apache-2.0 components:
   JetBrains annotations 13.0.
   https://github.com/JetBrains/kotlin/tree/v1.9.10
   https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.pom
-- GlideWebpDecoder 2.0.4.12.0 wrapper: Copyright 2017-2018 zjupure.
-  https://github.com/zjupure/GlideWebpDecoder/tree/989e6a4ab7db933c7685d40ee1047fcddeb4c4e5
+- GlideWebpDecoder 2.7.4.16.0 wrapper: Copyright 2017-2018 zjupure.
+  https://github.com/zjupure/GlideWebpDecoder/tree/56d3f2523d546bd069600b8ee2435a0e0e2c3c07
+  Glide remains 4.12.0; the decoder's transitive Glide 4.16.0 is excluded.
 - AndroidSVG 1.4: Copyright 2013-2018 Cave Rock Software Ltd.
   https://github.com/BigBadaboom/androidsvg/tree/9490d751d91033051efc6a4a9835ceff6082e9ff
 - AndroidX libraries and Material Components: Android Open Source Project and
@@ -40,8 +41,10 @@ No Chatterino desktop-client source or artwork is included in that library.
 
 Glide 4.12.0 and its gifdecoder/disklrucache components carry the composite license
 below. The decoder includes separate libwebp BSD-style terms and a patent grant.
-The provider source snapshot identifies libwebp 1.1.0; exact native compilation
-reproducibility is not asserted. No local decoder library-source fork is made.
+Both ARM decoder binaries report libwebp 1.3.2. Artifact hashes and compatibility
+evidence are recorded in mod/app/libs/NOTICE-webpdecoder.md and
+tools/webpdecoder-inputs.json. Exact native compilation reproducibility is not
+asserted. No local decoder library-source fork is made.
 
 Public Suffix List data: MPL 2.0, separate from the Apache-licensed HTTP code.
 License: https://www.mozilla.org/en-US/MPL/2.0/

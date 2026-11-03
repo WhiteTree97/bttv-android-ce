@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+before_webp_remediation = runpy.run_path(str(ROOT/'tests/community_webp.py'))['before_webp_remediation']
 sys.path.insert(0, str(ROOT / 'tools'))
 import build_production as builder
 import sign_release as signer
@@ -91,7 +93,10 @@ class SigningPolicy(unittest.TestCase):
         with patch.dict(os.environ,self.env,clear=True),patch.object(signer,'sdk_run',side_effect=self.sdk_fixture),patch.object(signer,'verify',side_effect=self.verify_fixture) as verify:
             signer.sign(self.apk,self.source,self.output,self.root/'sdk')
         self.assertEqual(len(self.calls),2);self.assertEqual(Path(self.calls[0][0]).name,'zipalign')
+        self.assertEqual(Path(self.calls[0][0]).parent.name,'35.0.0')
+        self.assertEqual(self.calls[0][1:4],['-P','16','4'])
         command=self.calls[1];self.assertEqual(Path(command[0]).name,'apksigner')
+        self.assertEqual(Path(command[0]).parent.name,'30.0.3')
         self.assertEqual(command[command.index('--ks-key-alias')+1],'bttv-android')
         self.assertEqual(command[command.index('--ks-pass')+1],'file:'+str(self.password))
         self.assertNotIn('--key-pass',command) # Do not read a single-line file twice.
@@ -225,7 +230,7 @@ class InfrastructureSecurity(unittest.TestCase):
             if path=='bttv.manifest.json':
                 # Only the explicitly approved APK B metadata differs; security code stays exact.
                 baseline=baseline.replace(b'0.43.2-beta',b'0.44.1-beta').replace(b'01208000338',b'1208000340')
-            self.assertEqual((ROOT/path).read_bytes().replace(b'\r\n',b'\n'),baseline.replace(b'\r\n',b'\n'),path)
+            self.assertEqual(before_webp_remediation(path,(ROOT/path).read_text()).encode(),baseline.replace(b'\r\n',b'\n'),path)
 
 
 class SafeSigningDiagnostics(unittest.TestCase):
@@ -373,6 +378,9 @@ class SafeSigningDiagnostics(unittest.TestCase):
             ('Duplicate entries or ZIP CRC failure','ZIP_INVALID'),
             ('Conservative DEX pool limit exceeded','DEX_LIMIT_EXCEEDED'),
             ('Native compression/alignment failure: '+self.SECRET,'NATIVE_INVALID'),
+            ('Unexpected native ABI','NATIVE_INVALID'),
+            ('Native ELF load alignment failure','NATIVE_INVALID'),
+            ('Unexpected WebP decoder','NATIVE_INVALID'),
             ('Unvalidated Twitch APK variant: '+self.SECRET,'INPUT_VERIFICATION_FAILED'),
             ('unexpected '+self.SECRET,'VALIDATION_FAILED')]:
             actual=signer.failure_category('verification',ValueError(message))
@@ -399,8 +407,8 @@ class SafeSigningDiagnostics(unittest.TestCase):
         self.assertEqual(len(prints),1)
         allowed_print=ast.parse("print('Verified private-signed candidate; sha256=' + proof['sha256'])").body[0].value
         self.assertEqual(ast.dump(prints[0]),ast.dump(allowed_print))
-        # Only stage assignments, a sanitizing exception wrapper and the redacted
-        # success message may differ. All existing checks/commands/export order stay exact.
+        # Only diagnostics and the exact reviewed zipalign -P 16 invocation differ.
+        # Signing parameters, private-input checks and export order stay exact.
         self.assertEqual(len(new_sign.body),2)
         self.assertIsInstance(new_sign.body[1],ast.Try)
         class RemoveDiagnostics(ast.NodeTransformer):
@@ -412,11 +420,20 @@ class SafeSigningDiagnostics(unittest.TestCase):
                 return self.generic_visit(node)
         original=ast.Module(body=copy.deepcopy(old_sign.body),type_ignores=[])
         instrumented=ast.Module(body=copy.deepcopy(new_sign.body[1].body),type_ignores=[])
+        old_alignment=ast.parse("sdk_run([tools / 'zipalign', '-p', '4', apk, aligned], env)").body[0].value
+        new_alignment=ast.parse("sdk_run([zipalign_tool(tools.parent.parent), '-P', '16', '4', apk, aligned], env)").body[0].value
+        self.assertEqual(sum(ast.dump(n)==ast.dump(new_alignment) for n in ast.walk(instrumented)),1)
+        class NormalizeAlignment(ast.NodeTransformer):
+            def visit_Call(self,node):
+                if ast.dump(node)==ast.dump(new_alignment):return copy.deepcopy(old_alignment)
+                return self.generic_visit(node)
+        instrumented=NormalizeAlignment().visit(instrumented)
         self.assertEqual(ast.dump(RemoveDiagnostics().visit(original)),ast.dump(RemoveDiagnostics().visit(instrumented)))
         stages=[n.value.value for n in ast.walk(new_sign) if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='stage']
         self.assertCountEqual(stages,['configuration','alignment','signing','verification','export'])
         verifier=subprocess.check_output(['git','show','51c0804939eb5583f66e46c32f02c6de0c54e737:tools/verify_release_apk.py'],cwd=ROOT)
-        self.assertEqual((ROOT/'tools/verify_release_apk.py').read_bytes().replace(b'\r\n',b'\n'),verifier.replace(b'\r\n',b'\n'))
+        current=before_webp_remediation('tools/verify_release_apk.py',(ROOT/'tools/verify_release_apk.py').read_text())
+        self.assertEqual(current.encode(),verifier.replace(b'\r\n',b'\n'))
 
 
 if __name__=='__main__':
