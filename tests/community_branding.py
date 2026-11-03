@@ -116,7 +116,15 @@ class CommunityBranding(unittest.TestCase):
         paths += subprocess.check_output(['git', 'ls-files', '.github/workflows'], cwd=ROOT).decode().splitlines()
         for path in paths:
             with self.subTest(path=path):
-                self.assertEqual((ROOT / path).read_bytes().replace(b'\r\n', b'\n'), before(path).replace(b'\r\n', b'\n'))
+                current=(ROOT / path).read_bytes().replace(b'\r\n',b'\n')
+                if path=='.github/workflows/docker.yml':
+                    # Behavioral/failure tests are in stage9_infrastructure. Freeze everything
+                    # outside the narrowly scoped, pinned APKEditor version guard.
+                    begin=b'            # APKEditor 1.4.9 returns 2 for informational commands.\n'
+                    end=b'            printf "%s\\n" "$apkeditor_version"\n'
+                    left=current.index(begin);right=current.index(end,left)+len(end)
+                    current=current[:left]+b'            java -jar "$APKEDITOR_PATH" -version\n'+current[right:]
+                self.assertEqual(current,before(path).replace(b'\r\n',b'\n'))
         self.assertIn('REPOSITORY = "' + REPO + '"', read(JAVA + 'UpdateSource.java'))
 
     def test_approved_b_metadata_and_release_sequence(self):

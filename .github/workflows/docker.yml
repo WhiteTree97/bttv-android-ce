@@ -29,5 +29,15 @@ jobs:
             python3 --version
             test -x "$ANDROID_SDK_ROOT/build-tools/30.0.3/zipalign"
             test -f "$ANDROID_SDK_ROOT/platforms/android-30/android.jar"
-            java -jar "$APKEDITOR_PATH" -version
+            # APKEditor 1.4.9 returns 2 for informational commands.
+            if apkeditor_version=$(java -jar "$APKEDITOR_PATH" -version 2>&1); then
+              apkeditor_status=0
+            else
+              apkeditor_status=$?
+            fi
+            if [ "$apkeditor_status" -ne 2 ] || [ "$apkeditor_version" != "APKEditor version 1.4.9, ARSCLib version 1.3.9" ]; then
+              echo "APKEditor version validation failed (exit $apkeditor_status)." >&2
+              exit 1
+            fi
+            printf "%s\n" "$apkeditor_version"
           '

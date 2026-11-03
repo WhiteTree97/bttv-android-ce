@@ -7,9 +7,11 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 import warnings
@@ -116,6 +118,66 @@ class Infrastructure(unittest.TestCase):
             return 'deleted.java\0' if '--deleted' in args else 'retained.java\0deleted.java\0'
         with patch('stage_production_input.git',side_effect=fixture):
             self.assertEqual(production_paths(ROOT),['retained.java'])
+
+    def docker_sdk_commands(self):
+        workflow=(ROOT/'.github/workflows/docker.yml').read_text()
+        block=workflow.split('      - name: Check required SDK tools\n        run: |\n',1)[1]
+        shell=textwrap.dedent(block)
+        command=shlex.split(shell)
+        self.assertEqual(command[:-1],['docker','run','--rm','--entrypoint','bash','bttv-builder:check','-c'])
+        return shell,command[-1]
+
+    @unittest.skipUnless(os.name=='posix' and shutil.which('bash'), 'Linux Bash workflow fixture')
+    def test_docker_sdk_check_shell_syntax(self):
+        outer,inner=self.docker_sdk_commands()
+        for shell in [outer,inner]:
+            subprocess.run(['bash','-n'],input=shell,text=True,check=True,capture_output=True)
+        self.assertNotIn('|| true',inner)
+
+    @unittest.skipUnless(os.name=='posix' and shutil.which('bash'), 'Linux Bash workflow fixture')
+    def test_docker_apkeditor_version_status_and_output_are_both_required(self):
+        _,shell=self.docker_sdk_commands()
+        expected='APKEditor version 1.4.9, ARSCLib version 1.3.9'
+        with tempfile.TemporaryDirectory(prefix='bttv-apkeditor-check-') as temp:
+            root=Path(temp);bin_dir=root/'bin';bin_dir.mkdir()
+            sdk=root/'sdk';(sdk/'build-tools/30.0.3').mkdir(parents=True);(sdk/'platforms/android-30').mkdir(parents=True)
+            zipalign=sdk/'build-tools/30.0.3/zipalign';zipalign.write_text('fixture executable');zipalign.chmod(0o755)
+            platform=sdk/'platforms/android-30/android.jar';platform.write_text('not a real SDK JAR')
+            java=bin_dir/'java';java.write_text('''#!/bin/bash
+if [ "$1" = -version ]; then
+  if [ "$FIXTURE_FAIL" = java ]; then exit 7; fi
+  echo java-fixture >&2; exit 0
+fi
+if [ "$1" = -jar ]; then
+  printf "%s" "$FIXTURE_OUTPUT" >&2
+  exit "$FIXTURE_STATUS"
+fi
+exit 99
+''');java.chmod(0o755)
+            python=bin_dir/'python3';python.write_text('''#!/bin/bash
+if [ "$FIXTURE_FAIL" = python ]; then exit 9; fi
+echo python-fixture
+''');python.chmod(0o755)
+            env=dict(os.environ,PATH=str(bin_dir)+os.pathsep+os.environ['PATH'],ANDROID_SDK_ROOT=str(sdk),
+                     APKEDITOR_PATH='fixture.jar',FIXTURE_FAIL='',FIXTURE_STATUS='2',FIXTURE_OUTPUT=expected+'\n')
+            for status,output,passes in [(2,expected+'\n',True),(0,expected+'\n',False),
+                    (1,expected+'\n',False),(127,expected+'\n',False),(2,'',False),
+                    (2,'APKEditor version 1.4.8, ARSCLib version 1.3.9\n',False),
+                    (2,'APKEditor version 1.4.9, ARSCLib version 0.0.0\n',False),
+                    (2,expected+'\nERROR: fixture failure\n',False),(2,'Unknown command\n',False)]:
+                with self.subTest(status=status,output=output):
+                    result=subprocess.run(['bash','-c',shell],env=dict(env,FIXTURE_STATUS=str(status),FIXTURE_OUTPUT=output),capture_output=True,text=True)
+                    self.assertEqual(result.returncode==0,passes,result.stdout+result.stderr)
+            # Earlier failures remain fatal and must not reach APKEditor at all.
+            for failure,code in [('java',7),('python',9)]:
+                result=subprocess.run(['bash','-c',shell],env=dict(env,FIXTURE_FAIL=failure),capture_output=True,text=True)
+                self.assertEqual(result.returncode,code);self.assertNotIn(expected,result.stdout+result.stderr)
+            zipalign.chmod(0o644)
+            result=subprocess.run(['bash','-c',shell],env=env,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0);self.assertNotIn(expected,result.stdout+result.stderr)
+            zipalign.chmod(0o755);platform.unlink()
+            result=subprocess.run(['bash','-c',shell],env=env,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0);self.assertNotIn(expected,result.stdout+result.stderr)
 
     def test_workflow_secret_and_publication_boundaries(self):
         ci=(ROOT/'.github/workflows/ci.yml').read_text()
